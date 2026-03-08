@@ -1,0 +1,12 @@
+---
+- name: Create K3s Kubernetes cluster
+  hosts: metal
+  roles:
+    - k3s
+
+- name: Setup secrets and tokens
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - helm_secrets
+    - cloudflare

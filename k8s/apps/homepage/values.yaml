@@ -1,0 +1,35 @@
+---
+homepage:
+  controller:
+    annotations:
+      reloader.stakater.com/auto: "true"
+
+  image:
+    repository: ghcr.io/gethomepage/homepage
+    tag: v1.10.1
+
+  # The service account is necessary to allow discovery of other services
+  serviceAccount:
+    create: true
+    name: homepage
+
+  # This enables the service account to access the necessary resources
+  enableRbac: true
+
+  ingress:
+    main:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: &host one.mdeleon.dev
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: homepage-tls-cert
+          hosts:
+            - *host
+  env:
+    - name: HOMEPAGE_ALLOWED_HOSTS
+      value: *host

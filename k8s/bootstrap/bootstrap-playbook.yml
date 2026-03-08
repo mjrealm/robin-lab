@@ -1,0 +1,9 @@
+---
+- name: Bootstrap k8s
+  hosts: localhost
+  roles:
+    # - cilium
+    - prometheus-crds
+    - nginx
+    - cert-manager
+    - argocd

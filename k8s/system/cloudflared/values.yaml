@@ -1,0 +1,26 @@
+---
+app-template:
+  controllers:
+    main:
+      strategy: RollingUpdate
+      containers:
+        main:
+          nameOverride: cloudflared
+          image:
+            repository: cloudflare/cloudflared
+            tag: 2026.2.0
+            # command:
+            #   - tunnel
+            #   - --no-autoupdate
+            #   - run
+            # args:
+            #   - --token
+            #   - ""
+          env:
+            TUNNEL_MANAGEMENT_DIAGNOSTICS: "false"
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 2000

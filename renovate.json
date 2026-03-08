@@ -1,0 +1,53 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended"
+    ],
+    "prHourlyLimit": 5,
+    "timezone": "Asia/Manila",
+    "schedule": [
+        "before 5am"
+    ],
+    "packageRules": [
+        {
+            "matchUpdateTypes": [
+                "major"
+            ],
+            "dependencyDashboardApproval": true
+        },
+        {
+            "matchDatasources": [
+                "docker"
+            ],
+            "matchPackageNames": [
+                "plexinc/pms-docker"
+            ],
+            "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(.*)?$"
+        },
+        {
+            "description": "Automerge patch updates",
+            "matchUpdateTypes": [
+                "patch"
+            ],
+            "automerge": true
+        },
+        {
+            "description": "Automerge minor updates",
+            "matchUpdateTypes": [
+                "minor"
+            ],
+            "matchPackageNames": [
+                "!/.*paperless-ngx/",
+                "!/.*pocket-id/",
+                "!/.*oauth2-proxy/",
+                "!/.*argo-cd/",
+                "!/.*adguardhome/",
+                "!/.*mealie/",
+                "!/.*outline/",
+                "!/.*meilisearch/",
+                "!/.*gotenberg/"
+            ],
+            "automerge": true
+        }
+    ]
+}

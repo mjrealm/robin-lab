@@ -1,0 +1,41 @@
+---
+- name: Add Cilium chart repo
+  when: not ansible_check_mode
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+
+- name: Install Cilium using Helm
+  when: not ansible_check_mode
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: charts/cilium/
+    release_namespace: kube-system
+    create_namespace: false
+    dependency_update: true
+    values_files:
+      - charts/cilium/values.yaml
+
+- name: Wait for Cilium CRDs
+  delegate_to: localhost
+  run_once: true
+  kubernetes.core.k8s_info:
+    kind: CustomResourceDefinition
+    name: "{{ item }}"
+  loop:
+    - ciliuml2announcementpolicies.cilium.io
+    - ciliumloadbalancerippools.cilium.io
+  register: crd
+  until: crd.resources | length > 0
+  retries: 10
+  delay: 20
+
+- name: Apply Cilium resources
+  when: not ansible_check_mode
+  delegate_to: localhost
+  run_once: true
+  kubernetes.core.k8s:
+    template: "{{ item }}"
+  loop:
+    - announcement-policy.yaml
+    - lb-ippool.yaml
