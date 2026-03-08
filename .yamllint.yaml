@@ -1,0 +1,12 @@
+---
+ignore: |
+  metal/
+  bootstrap/
+  homepage/
+  secrets.yaml
+  templates/
+
+extends: default
+
+rules:
+  line-length: disable
