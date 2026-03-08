@@ -1,6 +1,6 @@
 ---
 gitops:
-  repo: https://github.com/mjrealm/homelab.git
+  repo: https://github.com/mjrealm/robin-lab.git
   revision: HEAD
 
 stacks:
