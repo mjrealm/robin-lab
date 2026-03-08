@@ -22,7 +22,7 @@ homepage:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: &host one.mdeleon.dev
+        - host: &host dashboard.apollo.mdeleon.dev
           paths:
             - path: /
               pathType: Prefix
