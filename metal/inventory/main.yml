@@ -6,6 +6,6 @@ metal:
     master:
       hosts:
         metal0:
-          ansible_host: 192.168.1.182
+          ansible_host: 192.168.26.179
     server:    
     agent:

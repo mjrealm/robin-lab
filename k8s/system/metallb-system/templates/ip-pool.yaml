@@ -6,4 +6,4 @@ metadata:
   namespace: "{{ .Release.Namespace }}"
 spec:
   addresses:
-    - &ippool 192.168.26.200/29 # 192.168.26.200-192.168.26.207
+    - &ippool 192.168.26.201/29 # 192.168.26.201-192.168.26.207
