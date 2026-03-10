@@ -1,0 +1,191 @@
+---
+app-template:
+  defaultPodOptions:
+    enableServiceLinks: true
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: plex.tv/host
+                  operator: In
+                  values:
+                    - "true"
+
+  controllers:
+    filebrowser:
+      replicas: 1
+      strategy: Recreate
+      containers:
+        filebrowser:
+          image:
+            repository: ghcr.io/gtsteffaniak/filebrowser
+            tag: 1.3.0-beta-slim
+    servarr:
+      replicas: 1
+      strategy: Recreate
+      containers:
+        sonarr:
+          image:
+            repository: lscr.io/linuxserver/sonarr
+            tag: 4.0.16
+          env:
+            TZ: "Asia/Manila"
+            PUID: "1000"
+            PGID: "1000"
+        radarr:
+          image:
+            repository: lscr.io/linuxserver/radarr
+            tag: 6.0.4
+          env:
+            TZ: "Asia/Manila"
+            PUID: "1000"
+            PGID: "1000"
+        lidarr:
+          image:
+            repository: lscr.io/linuxserver/lidarr
+            tag: 2.14.5
+          env:
+            TZ: "Asia/Manila"
+            PUID: "1000"
+            PGID: "1000"
+        prowlarr:
+          image:
+            repository: lscr.io/linuxserver/prowlarr
+            tag: 2.3.0
+          env:
+            TZ: "Asia/Manila"
+            PUID: "1000"
+            PGID: "1000"
+        sabnzbd:
+          image:
+            repository: lscr.io/linuxserver/sabnzbd
+            tag: 4.5.5
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: "Asia/Manila"
+
+  service:
+    filebrowser:
+      controller: filebrowser
+      ports:
+        http:
+          port: 80
+    servarr:
+      controller: servarr
+      ports:
+        http:
+          port: 8989
+        http-radarr:
+          port: 7878
+        http-lidarr:
+          port: 8686
+        http-prowlarr:
+          port: 9696
+        http-sabnzbd:
+          port: 8080
+    # exporters:
+    #   controller: exporters
+    #   ports:
+    #     http:
+    #       port: 9707
+    #     http-radarr:
+    #       port: 9708
+    #     http-lidarr:
+    #       port: 9709
+    #     http-prowlarr:
+    #       port: 9710
+    #     http-sabnzbd:
+    #       port: 9711
+
+  persistence:
+    fb-config:
+      enabled: true
+      type: configMap
+      name: servarr
+      advancedMounts:
+        filebrowser:
+          filebrowser:
+            - path: /home/filebrowser/data/config.yaml
+              subPath: config.yaml
+              readOnly: false
+    config:
+      enabled: true
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 4Gi
+      retain: false
+      advancedMounts:
+        servarr:
+          sonarr:
+            - path: /config
+              subPath: sonarr
+          radarr:
+            - path: /config
+              subPath: radarr
+          lidarr:
+            - path: /config
+              subPath: lidarr
+          prowlarr:
+            - path: /config
+              subPath: prowlarr
+          sabnzbd:
+            - path: /config
+              subPath: sabnzbd
+
+    media-incomplete:
+      enabled: true
+      type: emptyDir
+      advancedMounts:
+        servarr:
+          sabnzbd:
+            - path: incomplete-downloads
+        filebrowser:
+          filebrowser:
+            - path: incomplete-downloads
+
+    media-downloads:
+      enabled: true
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 300Gi
+      globalMounts:
+        - path: /downloads
+
+    media-nfs:
+      enabled: true
+      type: nfs
+      server: 192.168.1.200
+      path: /volume1/media/
+
+  # serviceMonitor:
+  #   exporters:
+  #     enabled: true
+  #     serviceName: servarr-exporters
+  #     endpoints:
+  #       - port: http
+  #         scheme: http
+  #         path: /metrics
+  #         interval: 4m
+  #         scrapeTimeout: 90s
+  #       - port: http-radarr
+  #         scheme: http
+  #         path: /metrics
+  #         interval: 4m
+  #         scrapeTimeout: 90s
+  #       - port: http-lidarr
+  #         scheme: http
+  #         path: /metrics
+  #         interval: 4m
+  #         scrapeTimeout: 90s
+  #       - port: http-prowlarr
+  #         scheme: http
+  #         path: /metrics
+  #         interval: 4m
+  #         scrapeTimeout: 90s
+  #       - port: http-sabnzbd
+  #         scheme: http
+  #         path: /metrics
+  #         interval: 4m
+  #         scrapeTimeout: 90s
