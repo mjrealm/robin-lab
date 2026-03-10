@@ -21,7 +21,7 @@ app-template:
             readiness:
               enabled: false
             startup:
-              enabled: false    
+              enabled: false
   service:
     main:
       type: LoadBalancer
@@ -39,7 +39,7 @@ app-template:
           port: 53
         dns-udp:
           protocol: UDP
-          port: 53    
+          port: 53
 
   persistence:
     work-primary:
@@ -50,7 +50,7 @@ app-template:
       advancedMounts:
         main:
           main:
-            - path: /opt/adguardhome/work    
+            - path: /opt/adguardhome/work
     config-primary:
       enabled: true
       type: persistentVolumeClaim
