@@ -75,19 +75,6 @@ app-template:
           port: 9696
         http-sabnzbd:
           port: 8080
-    # exporters:
-    #   controller: exporters
-    #   ports:
-    #     http:
-    #       port: 9707
-    #     http-radarr:
-    #       port: 9708
-    #     http-lidarr:
-    #       port: 9709
-    #     http-prowlarr:
-    #       port: 9710
-    #     http-sabnzbd:
-    #       port: 9711
 
   persistence:
     fb-config:
