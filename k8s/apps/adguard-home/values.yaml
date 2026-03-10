@@ -1,0 +1,62 @@
+---
+app-template:
+  controllers:
+    main:
+      # strategy: RollingUpdate
+      # rollingUpdate:
+      #   unavailable: 0
+      #   surge: 1
+      strategy: Recreate
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+      containers:
+        main:
+          nameOverride: adguard-primary
+          image:
+            repository: adguard/adguardhome
+            tag: v0.107.72
+          probes:
+            liveness:
+              enabled: false
+            readiness:
+              enabled: false
+            startup:
+              enabled: false    
+  service:
+    main:
+      type: LoadBalancer
+      loadBalancerIP: 192.168.26.201
+      controller: main
+      ports:
+        http:
+          protocol: HTTP
+          port: 80
+        http-web:
+          protocol: HTTP
+          port: 3000
+        dns-tcp:
+          protocol: TCP
+          port: 53
+        dns-udp:
+          protocol: UDP
+          port: 53    
+
+  persistence:
+    work-primary:
+      enabled: true
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 4Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/adguardhome/work    
+    config-primary:
+      enabled: true
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 100Mi
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/adguardhome/conf

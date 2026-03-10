@@ -29,6 +29,7 @@ plex-media-server:
 
   service:
     type: LoadBalancer
+    loadBalancerIP: 192.168.26.202
 
   # Should add load balancer ip and port
   # in Settings > Network > Custom server access URLs
