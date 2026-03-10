@@ -60,3 +60,4 @@ app-template:
         main:
           main:
             - path: /opt/adguardhome/conf
+            

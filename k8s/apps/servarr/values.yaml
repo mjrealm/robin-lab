@@ -135,3 +135,4 @@ app-template:
     #   type: nfs
     #   server: 192.168.26.200
     #   path: /volume1/media/
+    
