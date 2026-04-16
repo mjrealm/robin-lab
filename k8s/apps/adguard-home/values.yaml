@@ -14,7 +14,7 @@ app-template:
           nameOverride: adguard-primary
           image:
             repository: adguard/adguardhome
-            tag: v0.107.73
+            tag: v0.107.74
           probes:
             liveness:
               enabled: false
