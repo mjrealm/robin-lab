@@ -2,8 +2,18 @@
 controlplane.yaml
 worker.yaml
 talosconfig
+schematic.id
 
 # Ignore large downloaded boot assets
 vmlinuz
 initramfs.xz
 *.iso
+
+# Ignore dynamic Matchbox/dnsmasq configs and logs
+matchbox/dnsmasq.conf
+matchbox/dnsmasq.log
+matchbox/dnsmasq.pid
+
+# Ignore all downloaded TFTP bootloaders except .gitkeep
+matchbox/tftp/*
+!matchbox/tftp/.gitkeep

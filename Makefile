@@ -1,6 +1,6 @@
 .PHONY: help init-secrets cluster ignite bootstrap recover check-tools
 
-REQUIRED_BINS := curl helm kubectl talosctl sops pixiecore age go
+REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age go
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -15,7 +15,7 @@ check-tools: ## Verify all required CLI tools are installed
 init-secrets: check-tools ## Prompt and generate SOPS encrypted secrets for Age and Cloudflare
 	@$(MAKE) -C k8s init-secrets
 
-cluster: check-tools ## Boot nodes via Pixiecore and generate Talos configs
+cluster: check-tools ## Boot nodes via Matchbox/dnsmasq and generate Talos configs
 	@$(MAKE) -C metal cluster
 
 ignite: check-tools ## Wake up the cluster (initialize etcd)

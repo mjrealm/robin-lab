@@ -4,7 +4,7 @@ Bare-metal Kubernetes homelab using Talos Linux, GitOps (ArgoCD), and strict Dis
 
 ## Architecture Highlights
 - **OS:** Talos Linux (v1.13.5) custom built via Talos Image Factory (includes `tailscale`, `iscsi-tools`, `util-linux-tools`).
-- **Provisioning:** Network boot (iPXE) via `pixiecore` directly from the `Makefile`.
+- **Provisioning:** Network boot (iPXE) via `dnsmasq` and `Matchbox` directly from the `Makefile`.
 - **Storage:** Longhorn CSI (with `kubernetes-csi` external snapshotter for NAS backups).
 - **GitOps:** ArgoCD using `ApplicationSets` (`system/`, `platform/`, `apps/`).
 - **Disaster Recovery:** Velero backing up state to Cloudflare R2, and persistent volume snapshots to local NAS via Longhorn.
@@ -12,8 +12,7 @@ Bare-metal Kubernetes homelab using Talos Linux, GitOps (ArgoCD), and strict Dis
 ## Prerequisites
 Assuming you are using macOS (Apple Silicon M-chip):
 ```bash
-brew install talosctl helm kubectl sops age go
-go install go.universe.tf/netboot/cmd/pixiecore@latest
+brew install talosctl helm kubectl sops age go jq docker
 ```
 
 ## TL;DR: Standard / Disaster Recovery Workflow
@@ -30,7 +29,7 @@ make bootstrap   # Install GitOps, Storage, and Backup dependencies
 ## The Workflow in Detail
 
 ### Step 1: Boot Nodes (Talos)
-Generate a Talos Factory schematic, patch your config, and boot the nodes via `pixiecore`.
+Generate a Talos Factory schematic, patch your config, and boot the nodes via `dnsmasq` and `Matchbox`.
 
 ```bash
 make cluster
@@ -39,7 +38,7 @@ This will:
 1. Generate a Talos factory schematic ID.
 2. Generate `controlplane.yaml` and `worker.yaml` with your VIP.
 3. Download the specific `vmlinuz` and `initramfs` for your schematic.
-4. Run `pixiecore` to serve the iPXE boot process over your network.
+4. Run `dnsmasq` and `Matchbox` to serve the iPXE boot process over your network.
 *Note: Make sure your nodes are configured to PXE boot.*
 
 ### Step 2: Wake Up the Cluster (Ignite)
