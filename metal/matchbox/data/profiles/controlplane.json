@@ -1,0 +1,22 @@
+{
+  "id": "controlplane",
+  "name": "Talos Control Plane",
+  "boot": {
+    "kernel": "/assets/vmlinuz",
+    "initrd": [
+      "/assets/initramfs.xz"
+    ],
+    "args": [
+      "initrd=initramfs.xz",
+      "init_on_alloc=1",
+      "slab_nomerge",
+      "pti=on",
+      "console=tty0",
+      "console=ttyS0",
+      "printk.devkmsg=on",
+      "page_alloc.shuffle=1",
+      "talos.platform=metal",
+      "talos.config=http://{{.matchbox_address}}/assets/controlplane.yaml"
+    ]
+  }
+}

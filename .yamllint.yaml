@@ -3,6 +3,7 @@ ignore: |
   metal/
   bootstrap/
   homepage/
+  *.dec.yaml
   secrets.yaml
   templates/
 
