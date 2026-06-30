@@ -3,7 +3,7 @@ ARCH ?= amd64
 CLUSTER_NAME ?= robin-lab
 
 # By default, try to read the schematic ID if it exists, otherwise tell the user to generate one
-SCHEMATIC_ID := $(shell cat schematic.id 2>/dev/null || echo "REPLACE_ME")
+SCHEMATIC_ID = $(shell cat schematic.id 2>/dev/null || echo "REPLACE_ME")
 
 .PHONY: help cluster schematic generate-config fetch-assets pixiecore talos-bootstrap
 
@@ -48,6 +48,11 @@ fetch-assets: ## Fetch iPXE kernel and initramfs from Talos Factory
 	@echo "Fetching Talos vmlinuz and initramfs for schematic $(SCHEMATIC_ID)..."
 	curl -LO https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH)/vmlinuz
 	curl -LO https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH)/initramfs.xz
+
+iso: ## Fetch Talos ISO (Useful for UTM/VM testing)
+	@if [ "$(SCHEMATIC_ID)" = "REPLACE_ME" ]; then echo "Run 'make schematic' first!"; exit 1; fi
+	@echo "Fetching Talos $(ARCH) ISO for schematic $(SCHEMATIC_ID)..."
+	curl -LO https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH).iso
 
 pixiecore: ## Run pixiecore to serve iPXE assets over network
 	@echo "Ensure you have vmlinuz and initramfs.xz in this directory"
