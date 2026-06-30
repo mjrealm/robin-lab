@@ -4,6 +4,7 @@ ignore: |
   bootstrap/
   homepage/
   *.dec.yaml
+  secrets.yaml
   templates/
 
 extends: default
