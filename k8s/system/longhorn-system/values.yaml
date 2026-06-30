@@ -12,6 +12,8 @@ longhorn:
     jobEnabled: false
   defaultSettings:
     taintToleration: node-role.kubernetes.io/master=true:NoSchedule
+  defaultBackupStore:
+    backupTarget: nfs://192.168.26.10:/volume1/backups/longhorn
   ingress:
     enabled: true
     host: longhorn.apollo.mdeleon.dev
@@ -23,7 +25,7 @@ longhorn:
       gethomepage.dev/name: Longhorn
       gethomepage.dev/description: Block Storage
       gethomepage.dev/group: System
-      gethomepage.dev/icon: longhorn.png
+      gethomepage.dev/icon: sh-longhorn.png
       gethomepage.dev/pod-selector: ""
   metrics:
     serviceMonitor:

@@ -1,3 +1,0 @@
----
-# Only for Cilium
-load_balancer_ip_pool: 192.168.26.201/29 # 192.168.26.201-192.168.26.207
