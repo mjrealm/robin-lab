@@ -32,5 +32,5 @@ cilium:
       enabled: true
 
 loadBalancerIPPools:
-  - 192.168.29.100/30 # Covers .100, .101, .102, and .103
-  - 192.168.29.104/31 # Covers .104 and .105
+  - 192.168.29.100/30  # Covers .100, .101, .102, and .103
+  - 192.168.29.104/31  # Covers .104 and .105

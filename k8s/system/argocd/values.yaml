@@ -1,4 +1,5 @@
+---
 argo-cd:
   configs:
     params:
-      server.insecure: true # Usually true when terminating SSL at Traefik
+      server.insecure: true  # Usually true when terminating SSL at Traefik

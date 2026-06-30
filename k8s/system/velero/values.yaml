@@ -38,7 +38,7 @@ velero:
       schedule: "30 3 1 * *"
       template:
         storageLocation: default
-        ttl: "8760h" # 365 days
+        ttl: "8760h"  # 365 days
         snapshotVolumes: true
         includedNamespaces:
           - '*'

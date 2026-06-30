@@ -1,3 +1,4 @@
+---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -6,13 +7,13 @@ metadata:
 spec:
   goTemplate: true
   generators:
-  - git:
-      repoURL: https://github.com/mjrealm/robin-lab.git
-      revision: HEAD
-      directories:
-      - path: k8s/system/*
-      - path: k8s/platform/*
-      - path: k8s/apps/*
+    - git:
+        repoURL: https://github.com/mjrealm/robin-lab.git
+        revision: HEAD
+        directories:
+          - path: k8s/system/*
+          - path: k8s/platform/*
+          - path: k8s/apps/*
   template:
     metadata:
       name: '{{.path.basename}}'
