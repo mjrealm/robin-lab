@@ -10,7 +10,7 @@ app-template:
         filebrowser:
           image:
             repository: ghcr.io/gtsteffaniak/filebrowser
-            tag: 1.4.2-beta-slim
+            tag: 1.5.0-beta-slim
     servarr:
       replicas: 1
       strategy: Recreate
