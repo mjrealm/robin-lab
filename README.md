@@ -48,8 +48,12 @@ make cluster
 ```
 This will:
 1. Generate a Talos Factory custom schematic ID (with system extensions).
-2. Generate the cluster config templates (`controlplane.yaml` / `worker.yaml`) with your VIP.
-3. Download the specific `metal-amd64.iso` (or arm64) for your architecture.
+2. Generate (and encrypt via SOPS) a `talos-secrets.yaml` bundle if one does not exist.
+3. Deterministically generate the cluster config templates (`controlplane.yaml` / `worker.yaml`) with your VIP.
+4. Download the specific `metal-amd64.iso` (or arm64) for your architecture.
+
+> [!CAUTION]
+> The `make cluster` command generates `metal/talos-secrets.yaml` which is your **cluster's master PKI bundle**. It is automatically encrypted by SOPS and tracked in Git. Because everything is deterministic and encrypted in Git, you no longer need to back up `talosconfig`. **You ONLY need to back up your SOPS `age` private key to your secure vault (e.g., Bitwarden).** As long as you have your `age` key, you can recover your entire cluster!
 
 Next, boot your machine(s) using the downloaded ISO (attach it to your VM or flash it to a USB stick). Once the machine boots, it will display an IP address on its screen.
 
@@ -117,6 +121,17 @@ Because we use Talos Factory extensions, always upgrade using the installer imag
 make upgrade-node
 ```
 This will automatically prompt you for the node's IP address and the target Talos version.
+
+## Adding Worker Nodes
+Adding a worker node to an existing cluster is simple because your `metal/worker.yaml` (which contains the required join tokens and cluster certificates) is already generated locally.
+
+1. **Boot the new machine** using your downloaded ISO (Run `make iso` if you need to re-download it).
+2. *(Optional)* Run `make get-disks` to inspect the disk layout of the new node once it's booted.
+3. Run **`make apply-config`**.
+4. When prompted, enter the new node's IP address.
+5. When prompted for the role, enter **`worker`**.
+
+The node will automatically install Talos, reboot, and securely join your existing Kubernetes cluster! *(Note: If your new worker node requires a different installation disk path than the one you originally specified during cluster generation, simply edit `metal/worker.yaml` to change the `install: disk:` path before applying the config).*
 
 ---
 

@@ -20,3 +20,4 @@ matchbox/tftp/*
 matchbox/data/profiles/*.json
 !matchbox/data/profiles/*.json.template
 matchbox/data/groups/*.json
+.talos-secrets.dec.yaml

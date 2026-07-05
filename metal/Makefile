@@ -34,25 +34,32 @@ schematic: ## Generate Talos Factory schematic ID
 	@curl -s -X POST -d '{"customization": {"systemExtensions": {"officialExtensions": ["siderolabs/iscsi-tools", "siderolabs/tailscale", "siderolabs/util-linux-tools"]}}}' https://factory.talos.dev/schematics | grep -o '"id":"[^"]*' | cut -d'"' -f4 > schematic.id
 	@echo "$(GREEN)Schematic ID saved to schematic.id: `cat schematic.id`$(RESET)"
 
-generate-config: ## Generate Talos configs
+generate-config: ## Generate Talos configs deterministically
 	@if [ ! -f patch.yaml ]; then echo "$(RED)Missing patch.yaml$(RESET)"; exit 1; fi
-	@if [ -f talosconfig ]; then \
-		echo "$(YELLOW)talosconfig already exists. Skipping config generation to preserve PKI.$(RESET)"; \
-		echo "$(YELLOW)(Run 'make destroy' if you truly want to destroy your cluster's certificates and start fresh)$(RESET)"; \
+	@echo "$(CYAN)Enter Cluster Name [default: $(CLUSTER_NAME)]:$(RESET)"; \
+	read CLUSTER_INPUT; \
+	if [ -z "$$CLUSTER_INPUT" ]; then CLUSTER_INPUT="$(CLUSTER_NAME)"; fi; \
+	echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
+	read VIP; \
+	echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
+	read DISK_INPUT; \
+	if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
+	if [ ! -f talos-secrets.yaml ]; then \
+		echo "$(YELLOW)No talos-secrets.yaml found. Generating new cluster secrets...$(RESET)"; \
+		talosctl gen secrets -o .talos-secrets.dec.yaml; \
+		echo "$(YELLOW)Encrypting secrets to talos-secrets.yaml with SOPS...$(RESET)"; \
+		sops -e .talos-secrets.dec.yaml > talos-secrets.yaml; \
 	else \
-		echo "$(CYAN)Enter Cluster Name [default: $(CLUSTER_NAME)]:$(RESET)"; \
-		read CLUSTER_INPUT; \
-		if [ -z "$$CLUSTER_INPUT" ]; then CLUSTER_INPUT="$(CLUSTER_NAME)"; fi; \
-		echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
-		read VIP; \
-		echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
-		read DISK_INPUT; \
-		if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
-		talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --config-patch @patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION); \
-		echo "$(CYAN)Validating generated configs...$(RESET)"; \
-		talosctl validate --config controlplane.yaml --mode metal; \
-		talosctl validate --config worker.yaml --mode metal; \
-	fi
+		echo "$(CYAN)Found talos-secrets.yaml. Decrypting for deterministic generation...$(RESET)"; \
+		sops -d talos-secrets.yaml > .talos-secrets.dec.yaml; \
+	fi; \
+	echo "$(CYAN)Generating configurations...$(RESET)"; \
+	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch @patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
+	rm -f .talos-secrets.dec.yaml; \
+	echo "$(CYAN)Validating generated configs...$(RESET)"; \
+	talosctl validate --config controlplane.yaml --mode metal; \
+	talosctl validate --config worker.yaml --mode metal; \
+	echo "$(GREEN)Cluster configs deterministically generated!$(RESET)"
 
 clean: ## Remove temporary boot assets (preserves your talosconfig PKI)
 	@echo "$(YELLOW)Cleaning up temporary configurations...$(RESET)"
