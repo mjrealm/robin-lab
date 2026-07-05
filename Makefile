@@ -1,4 +1,4 @@
-.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd recover check-tools
+.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node recover check-tools
 
 REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age go
 
@@ -32,6 +32,12 @@ bootstrap-core: check-tools ## Run core Kubernetes bootstrap (Stop before ArgoCD
 
 bootstrap-argocd: check-tools ## Install ArgoCD to resume GitOps reconciliation
 	@$(MAKE) -C k8s bootstrap-argocd
+
+patch-node: check-tools ## Apply configuration patches to a live Talos node
+	@$(MAKE) -C metal patch-node
+
+upgrade-node: check-tools ## Upgrade the Talos OS version on a node
+	@$(MAKE) -C metal upgrade-node
 
 recover: check-tools ## Trigger disaster recovery using Velero
 	@$(MAKE) -C k8s recover

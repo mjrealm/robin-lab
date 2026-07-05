@@ -16,7 +16,7 @@ RED    := $(shell printf "\033[31m")
 CYAN   := $(shell printf "\033[36m")
 RESET  := $(shell printf "\033[0m")
 
-.PHONY: help cluster schematic generate-config fetch-assets matchbox-start matchbox-stop fetch-bootloaders bootstrap-talos
+.PHONY: help cluster schematic generate-config fetch-assets matchbox-start matchbox-stop fetch-bootloaders bootstrap-talos patch-node upgrade-node
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -116,3 +116,35 @@ bootstrap-talos: ## Bootstrap the Talos cluster (initialize etcd)
 	echo "$(CYAN)Fetching kubeconfig...$(RESET)"; \
 	talosctl kubeconfig --nodes $$CP_IP_VAL --talosconfig=./talosconfig --force
 	@echo "$(GREEN)Cluster is awake! You can now use kubectl.$(RESET)"
+
+patch-node: ## Apply configuration patches to a live Talos node
+	@if [ -z "$(NODE_IP)" ]; then \
+		echo "$(CYAN)Enter the IP address of the node to patch:$(RESET)"; \
+		read NODE_IP_VAL; \
+	else \
+		NODE_IP_VAL="$(NODE_IP)"; \
+	fi; \
+	echo "$(CYAN)Applying patch.yaml to $$NODE_IP_VAL...$(RESET)"; \
+	talosctl patch machineconfig --nodes $$NODE_IP_VAL --patch @patch.yaml; \
+	echo "$(GREEN)Patch applied successfully!$(RESET)"
+
+upgrade-node: ## Upgrade the Talos OS version on a node
+	@if [ -z "$(NODE_IP)" ]; then \
+		echo "$(CYAN)Enter the IP address of the node to upgrade:$(RESET)"; \
+		read NODE_IP_VAL; \
+	else \
+		NODE_IP_VAL="$(NODE_IP)"; \
+	fi; \
+	if [ -z "$(NEW_VERSION)" ]; then \
+		echo "$(CYAN)Enter the new Talos version (e.g. v1.14.0):$(RESET)"; \
+		read NEW_VERSION_VAL; \
+	else \
+		NEW_VERSION_VAL="$(NEW_VERSION)"; \
+	fi; \
+	SCHEMATIC=$$(cat schematic.id 2>/dev/null); \
+	if [ -z "$$SCHEMATIC" ] || [ "$$SCHEMATIC" = "REPLACE_ME" ]; then \
+		echo "$(RED)Error: schematic.id not found. Run 'make schematic' first.$(RESET)"; exit 1; \
+	fi; \
+	echo "$(CYAN)Upgrading $$NODE_IP_VAL to $$NEW_VERSION_VAL using schematic $$SCHEMATIC...$(RESET)"; \
+	talosctl upgrade --nodes $$NODE_IP_VAL --image factory.talos.dev/installer/$$SCHEMATIC:$$NEW_VERSION_VAL; \
+	echo "$(GREEN)Upgrade initiated! The node will reboot when ready.$(RESET)"

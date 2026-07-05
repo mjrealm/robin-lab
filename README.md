@@ -97,12 +97,21 @@ If you lose your entire cluster:
    ```
 6. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
 
-## Upgrading Talos
-Because we use Talos Factory extensions, always upgrade using the installer image that includes your schematic ID.
+## Updating Node Configurations (Patches)
+If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can edit the `metal/patch.yaml` file. 
+
+To apply these new patches to a live node without wiping it, use the interactive make target:
 ```bash
-# Check schematic.id file
-talosctl upgrade --nodes <NODE_IP> --image factory.talos.dev/installer/$(cat metal/schematic.id):v1.14.0
+make patch-node
 ```
+The node will automatically apply the changes and seamlessly restart any necessary services (or perform a rolling reboot if the configuration requires it).
+
+## Upgrading Talos OS
+Because we use Talos Factory extensions, always upgrade using the installer image that includes your custom schematic ID. We have an interactive make target that handles this safely:
+```bash
+make upgrade-node
+```
+This will automatically prompt you for the node's IP address and the target Talos version.
 
 ---
 
