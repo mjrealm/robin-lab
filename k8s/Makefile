@@ -73,8 +73,18 @@ bootstrap-argocd:
 	kubectl apply -f argocd/root-app.yaml
 
 recover:
-	@echo "$(CYAN)Triggering Velero disaster recovery...$(RESET)"
-	velero restore create --from-backup latest-backup
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "$(CYAN)Available Backups:$(RESET)"; \
+		velero backup get; \
+		echo ""; \
+		echo "$(CYAN)Enter the name of the backup to restore:$(RESET)"; \
+		read BACKUP_VAL; \
+		if [ -z "$$BACKUP_VAL" ]; then echo "$(RED)Error: Backup name required.$(RESET)"; exit 1; fi; \
+	else \
+		BACKUP_VAL="$(BACKUP)"; \
+	fi; \
+	echo "$(CYAN)Triggering Velero disaster recovery from backup $$BACKUP_VAL...$(RESET)"; \
+	velero restore create --from-backup $$BACKUP_VAL
 	@echo "\n$(RED)=======================================================================$(RESET)"
 	@echo "$(RED)⚠️  WARNING: DO NOT INSTALL ARGOCD YET!$(RESET)"
 	@echo "$(YELLOW)Please wait for Velero to finish restoring all PVs and cluster state.$(RESET)"

@@ -101,11 +101,16 @@ If you lose your entire cluster:
 3. Boot your nodes with the downloaded ISO, then run `make apply-config` for each node.
 4. Run `make bootstrap-talos` to wake the cluster.
 5. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
-6. Run `make recover` which triggers:
+6. Run `make recover`. This will automatically list your available backups from Velero and interactively prompt you to type the name of the backup you want to restore.
+7. Wait for the restore to complete. You can monitor the progress with:
    ```bash
-   velero restore create --from-backup latest-backup
+   velero restore get
+   kubectl get pvc -A
    ```
-7. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
+8. Once the restore is marked `Completed` and PVs are bound, install ArgoCD to resume GitOps reconciliation:
+   ```bash
+   make bootstrap-argocd
+   ```
 
 ## Updating Node Configurations (Patches)
 If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can edit the `metal/patch.yaml` file. 
