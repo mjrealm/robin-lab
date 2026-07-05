@@ -48,10 +48,8 @@ generate-config: ## Generate Talos configs deterministically
 	read -s TS_KEY; \
 	echo ""; \
 	if [ -n "$$TS_KEY" ]; then \
-		echo "machine:\n  env:\n    TS_AUTHKEY: $$TS_KEY" > .patch.tailscale.yaml; \
-		TS_PATCH_ARG="--config-patch @.patch.tailscale.yaml"; \
-	else \
-		TS_PATCH_ARG=""; \
+		export TS_AUTHKEY="$$TS_KEY"; \
+		envsubst < tailscale.patch.yaml > .tailscale.patch.yaml; \
 	fi; \
 	if [ ! -f talos-secrets.yaml ]; then \
 		echo "$(YELLOW)No talos-secrets.yaml found. Generating new cluster secrets...$(RESET)"; \
@@ -63,8 +61,14 @@ generate-config: ## Generate Talos configs deterministically
 		sops -d talos-secrets.yaml > .talos-secrets.dec.yaml; \
 	fi; \
 	echo "$(CYAN)Generating configurations...$(RESET)"; \
-	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch @patch.yaml $$TS_PATCH_ARG --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
-	rm -f .talos-secrets.dec.yaml .patch.tailscale.yaml; \
+	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch @patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
+	if [ -f .tailscale.patch.yaml ]; then \
+		echo "---" >> controlplane.yaml; \
+		cat .tailscale.patch.yaml >> controlplane.yaml; \
+		echo "---" >> worker.yaml; \
+		cat .tailscale.patch.yaml >> worker.yaml; \
+	fi; \
+	rm -f .talos-secrets.dec.yaml .tailscale.patch.yaml; \
 	echo "$(CYAN)Validating generated configs...$(RESET)"; \
 	talosctl validate --config controlplane.yaml --mode metal; \
 	talosctl validate --config worker.yaml --mode metal; \
