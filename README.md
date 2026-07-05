@@ -57,9 +57,9 @@ make cluster
 *(Note: During generation, you will be prompted for your Tailscale Auth Key. You should generate a 90-day **reusable (non-ephemeral)** key from your Tailscale Admin Console. This key is securely injected into the node configs and never committed to Git).*
 This will:
 1. Generate a Talos Factory custom schematic ID (with system extensions).
-2. Generate (and encrypt via SOPS) a `talos-secrets.yaml` bundle if one does not exist.
-3. Deterministically generate the cluster config templates (`controlplane.yaml` / `worker.yaml`) with your VIP.
-4. Download the specific `metal-amd64.iso` (or arm64) for your architecture.
+2. Download the specific `metal-amd64.iso` (or arm64) for your architecture so you can boot it immediately.
+3. Prompt you for your cluster settings (VIP, Install Disk, Tailscale Key). *(If you don't know your disk path, you can flash the ISO right then and boot your node to check it!)*
+4. Deterministically generate your cluster configurations (`controlplane.yaml` / `worker.yaml`).
 
 > [!CAUTION]
 > The `make cluster` command generates `metal/talos-secrets.yaml` which is your **cluster's master PKI bundle**. It is automatically encrypted by SOPS and tracked in Git. Because everything is deterministic and encrypted in Git, you no longer need to back up `talosconfig`. **You ONLY need to back up your SOPS `age` private key to your secure vault (e.g., Bitwarden).** As long as you have your `age` key, you can recover your entire cluster!

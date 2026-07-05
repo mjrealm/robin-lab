@@ -21,7 +21,7 @@ RESET  := $(shell printf "\033[0m")
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-cluster: schematic generate-config iso ## Generate configs and download the Talos ISO
+cluster: schematic iso generate-config ## Generate configs and download the Talos ISO
 	@echo "$(GREEN)Cluster assets generated!$(RESET)"
 	@echo "$(YELLOW)Next Steps:$(RESET)"
 	@echo "1. Boot your machine(s) using the downloaded metal-$(ARCH).iso"
@@ -42,6 +42,7 @@ generate-config: ## Generate Talos configs deterministically
 	echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
 	read VIP; \
 	echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
+	echo "$(YELLOW)(Hint: If you don't know your disk, metal-$(ARCH).iso is already downloaded! Boot it, open a new terminal, and run 'make get-disks')$(RESET)"; \
 	read DISK_INPUT; \
 	if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
 	echo "$(CYAN)Enter your Tailscale Auth Key (leave blank to skip):$(RESET)"; \
