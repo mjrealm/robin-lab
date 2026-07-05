@@ -96,15 +96,16 @@ Once ArgoCD is running, it will automatically sync `system/`, `platform/`, and `
 
 ## Disaster Recovery (Velero)
 If you lose your entire cluster:
-1. Run `make cluster` to generate configs and download the Talos ISO.
-2. Boot your nodes with the ISO, then run `make apply-config` for each node.
-3. Run `make bootstrap-talos` to wake the cluster.
-4. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
-5. Run `make recover` which triggers:
+1. **Ensure your SOPS `age` private key** is available on your machine (e.g., at `~/.config/sops/age/keys.txt`) so it can decrypt `talos-secrets.yaml`.
+2. Run `make cluster` to deterministically regenerate your cluster configurations using your exact certificates.
+3. Boot your nodes with the downloaded ISO, then run `make apply-config` for each node.
+4. Run `make bootstrap-talos` to wake the cluster.
+5. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
+6. Run `make recover` which triggers:
    ```bash
    velero restore create --from-backup latest-backup
    ```
-6. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
+7. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
 
 ## Updating Node Configurations (Patches)
 If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can edit the `metal/patch.yaml` file. 
