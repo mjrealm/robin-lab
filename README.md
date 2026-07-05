@@ -26,8 +26,13 @@ For example, to prep an ARM64 cluster running Talos v1.14.0:
 make cluster ARCH=arm64 TALOS_VERSION=v1.14.0
 ```
 
-## TL;DR: Standard / Disaster Recovery Workflow
-If the repository is already configured and you are doing a routine cluster rebuild or a full Disaster Recovery from bare metal, just run these commands:
+## TL;DR: Fresh Install / Cluster Rebuild
+If the repository is already configured and you are doing a routine cluster rebuild or a fresh installation, ensure you have the following credentials ready:
+1. Your **Tailscale Auth Key** (90-day Reusable, non-ephemeral).
+2. Your **Cloudflare API Token** (for `cert-manager` and `external-dns`).
+3. Your SOPS **`age` Private Key** (must be located at `~/.config/sops/age/keys.txt`).
+
+Once ready, just run these commands:
 
 ```bash
 make cluster          # (Run once) Generate configs and download the bootable Talos ISO
@@ -35,6 +40,9 @@ make apply-config     # (Run multiple times) Push configuration to each ISO-boot
 make bootstrap-talos  # (Run once) Initialize the cluster and fetch kubeconfig
 make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependencies
 ```
+
+> [!WARNING]
+> **Performing a Disaster Recovery?** Do NOT run `make bootstrap-k8s`. You must restore your Velero backups *before* installing ArgoCD. Follow the full instructions in the [Disaster Recovery](#disaster-recovery-velero) section below!
 
 ---
 
@@ -46,7 +54,7 @@ First, generate your cluster configurations and download the bootable Talos ISO:
 ```bash
 make cluster
 ```
-*(Note: During generation, you will be prompted for your Tailscale Auth Key. You can generate a 90-day ephemeral key from your Tailscale Admin Console. This key is securely injected in memory and never committed to Git).*
+*(Note: During generation, you will be prompted for your Tailscale Auth Key. You should generate a 90-day **reusable (non-ephemeral)** key from your Tailscale Admin Console. This key is securely injected into the node configs and never committed to Git).*
 This will:
 1. Generate a Talos Factory custom schematic ID (with system extensions).
 2. Generate (and encrypt via SOPS) a `talos-secrets.yaml` bundle if one does not exist.
