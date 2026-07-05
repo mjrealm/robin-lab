@@ -16,7 +16,7 @@ RED    := $(shell printf "\033[31m")
 CYAN   := $(shell printf "\033[36m")
 RESET  := $(shell printf "\033[0m")
 
-.PHONY: help cluster schematic generate-config fetch-assets matchbox-start matchbox-stop fetch-bootloaders bootstrap-talos patch-node upgrade-node
+.PHONY: help cluster schematic generate-config clean destroy iso apply-config get-disks bootstrap-talos patch-node upgrade-node
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -45,7 +45,10 @@ generate-config: ## Generate Talos configs
 		if [ -z "$$CLUSTER_INPUT" ]; then CLUSTER_INPUT="$(CLUSTER_NAME)"; fi; \
 		echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
 		read VIP; \
-		talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --config-patch @patch.yaml --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION); \
+		echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
+		read DISK_INPUT; \
+		if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
+		talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --config-patch @patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION); \
 		echo "$(CYAN)Validating generated configs...$(RESET)"; \
 		talosctl validate --config controlplane.yaml --mode metal; \
 		talosctl validate --config worker.yaml --mode metal; \
@@ -99,6 +102,16 @@ apply-config: ## Push configuration to a booted Talos node
 	echo "$(CYAN)Applying $$ROLE_VAL configuration to $$NODE_IP_VAL...$(RESET)"; \
 	talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml; \
 	echo "$(GREEN)Configuration applied! The node will reboot and install Talos.$(RESET)"
+
+get-disks: ## Inspect disks on a booted (unconfigured) node
+	@if [ -z "$(NODE_IP)" ]; then \
+		echo "$(CYAN)Enter the IP address of the booted node:$(RESET)"; \
+		read NODE_IP_VAL; \
+	else \
+		NODE_IP_VAL="$(NODE_IP)"; \
+	fi; \
+	echo "$(CYAN)Fetching disk information for $$NODE_IP_VAL...$(RESET)"; \
+	talosctl get disks --insecure --nodes $$NODE_IP_VAL
 
 bootstrap-talos: ## Bootstrap the Talos cluster (initialize etcd)
 	@if [ -z "$(CP_IP)" ]; then \

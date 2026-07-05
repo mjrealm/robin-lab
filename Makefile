@@ -1,4 +1,4 @@
-.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node recover check-tools
+.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node get-disks recover check-tools
 
 REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age go
 
@@ -38,6 +38,9 @@ patch-node: check-tools ## Apply configuration patches to a live Talos node
 
 upgrade-node: check-tools ## Upgrade the Talos OS version on a node
 	@$(MAKE) -C metal upgrade-node
+
+get-disks: check-tools ## Inspect disks on a booted (unconfigured) node
+	@$(MAKE) -C metal get-disks
 
 recover: check-tools ## Trigger disaster recovery using Velero
 	@$(MAKE) -C k8s recover

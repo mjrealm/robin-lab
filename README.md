@@ -53,6 +53,11 @@ This will:
 
 Next, boot your machine(s) using the downloaded ISO (attach it to your VM or flash it to a USB stick). Once the machine boots, it will display an IP address on its screen.
 
+*(Optional)* If you need to inspect the node's disks to find the correct installation path (e.g., `/dev/sda` or `/dev/nvme0n1`) for your `metal/patch.yaml`, you can run:
+```bash
+make get-disks
+```
+
 From your Mac, push the configuration to the node. The command is interactive and will prompt you for the node's IP address and role (controlplane or worker):
 ```bash
 make apply-config
