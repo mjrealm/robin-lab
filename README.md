@@ -46,6 +46,7 @@ First, generate your cluster configurations and download the bootable Talos ISO:
 ```bash
 make cluster
 ```
+*(Note: During generation, you will be prompted for your Tailscale Auth Key. You can generate a 90-day ephemeral key from your Tailscale Admin Console. This key is securely injected in memory and never committed to Git).*
 This will:
 1. Generate a Talos Factory custom schematic ID (with system extensions).
 2. Generate (and encrypt via SOPS) a `talos-secrets.yaml` bundle if one does not exist.
