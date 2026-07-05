@@ -17,3 +17,6 @@ matchbox/dnsmasq.pid
 # Ignore all downloaded TFTP bootloaders except .gitkeep
 matchbox/tftp/*
 !matchbox/tftp/.gitkeep
+matchbox/data/profiles/*.json
+!matchbox/data/profiles/*.json.template
+matchbox/data/groups/*.json

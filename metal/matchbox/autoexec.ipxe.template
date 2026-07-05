@@ -1,3 +1,0 @@
-#!ipxe
-# Chainload Matchbox using the dynamically resolved host IP
-chain http://__HOST_IP__:8080/boot.ipxe

@@ -5,7 +5,7 @@ RED    := $(shell printf "\033[31m")
 CYAN   := $(shell printf "\033[36m")
 RESET  := $(shell printf "\033[0m")
 
-.PHONY: help init-secrets bootstrap bootstrap-core recover bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
+.PHONY: help init-secrets bootstrap-k8s bootstrap-core recover bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -21,7 +21,7 @@ init-secrets: ## Interactively prompt for secrets
 	@sops -e -i secrets.yaml
 	@echo "$(GREEN)secrets.yaml has been encrypted safely!$(RESET)"
 
-bootstrap: bootstrap-core bootstrap-argocd ## Run strict full bootstrap sequence
+bootstrap-k8s: bootstrap-core bootstrap-argocd ## Run strict full bootstrap sequence
 
 bootstrap-core: bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero ## Run core bootstrap (Stop before ArgoCD for DR)
 

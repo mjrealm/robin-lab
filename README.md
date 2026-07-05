@@ -3,8 +3,8 @@
 Bare-metal Kubernetes homelab using Talos Linux, GitOps (ArgoCD), and strict Disaster Recovery principles.
 
 ## Architecture Highlights
-- **OS:** Talos Linux (v1.13.5) custom built via Talos Image Factory (includes `tailscale`, `iscsi-tools`, `util-linux-tools`).
-- **Provisioning:** Network boot (iPXE) via `dnsmasq` and `Matchbox` directly from the `Makefile`.
+- **OS:** Talos Linux custom built via Talos Image Factory (includes `tailscale`, `iscsi-tools`, `util-linux-tools`).
+- **Provisioning:** USB/ISO Boot via `talosctl apply-config` and `Makefile`.
 - **Storage:** Longhorn CSI (with `kubernetes-csi` external snapshotter for NAS backups).
 - **GitOps:** ArgoCD using `ApplicationSets` (`system/`, `platform/`, `apps/`).
 - **Disaster Recovery:** Velero backing up state to Cloudflare R2, and persistent volume snapshots to local NAS via Longhorn.
@@ -15,13 +15,25 @@ Assuming you are using macOS (Apple Silicon M-chip):
 brew install talosctl helm kubectl sops age go jq docker
 ```
 
+## Configuration Variables
+You can customize your deployment parameters by editing the variables at the top of [metal/Makefile](metal/Makefile) or passing them directly inline when running commands:
+* `TALOS_VERSION`: The version of Talos Linux to install.
+* `ARCH` (default: `amd64`): The target hardware CPU architecture (use `arm64` for Apple Silicon UTM VM testing).
+* `CLUSTER_NAME` (default: `robin-lab`): The name of your Kubernetes/Talos cluster.
+
+For example, to prep an ARM64 cluster running Talos v1.14.0:
+```bash
+make cluster ARCH=arm64 TALOS_VERSION=v1.14.0
+```
+
 ## TL;DR: Standard / Disaster Recovery Workflow
-If the repository is already configured and you are doing a routine cluster rebuild or a full Disaster Recovery from bare metal, just run these three commands:
+If the repository is already configured and you are doing a routine cluster rebuild or a full Disaster Recovery from bare metal, just run these commands:
 
 ```bash
-make cluster     # PXE boot the Talos OS onto your nodes
-make ignite      # Wake up the cluster and fetch kubeconfig
-make bootstrap   # Install GitOps, Storage, and Backup dependencies
+make cluster          # (Run once) Generate configs and download the bootable Talos ISO
+make apply-config     # (Run multiple times) Push configuration to each ISO-booted node
+make bootstrap-talos  # (Run once) Initialize the cluster and fetch kubeconfig
+make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependencies
 ```
 
 ---
@@ -29,30 +41,36 @@ make bootstrap   # Install GitOps, Storage, and Backup dependencies
 ## The Workflow in Detail
 
 ### Step 1: Boot Nodes (Talos)
-Generate a Talos Factory schematic, patch your config, and boot the nodes via `dnsmasq` and `Matchbox`.
+First, generate your cluster configurations and download the bootable Talos ISO:
 
 ```bash
 make cluster
 ```
 This will:
-1. Generate a Talos factory schematic ID.
-2. Generate `controlplane.yaml` and `worker.yaml` with your VIP.
-3. Download the specific `vmlinuz` and `initramfs` for your schematic.
-4. Run `dnsmasq` and `Matchbox` to serve the iPXE boot process over your network.
-*Note: Make sure your nodes are configured to PXE boot.*
+1. Generate a Talos Factory custom schematic ID (with system extensions).
+2. Generate the cluster config templates (`controlplane.yaml` / `worker.yaml`) with your VIP.
+3. Download the specific `metal-amd64.iso` (or arm64) for your architecture.
 
-### Step 2: Wake Up the Cluster (Ignite)
+Next, boot your machine(s) using the downloaded ISO (attach it to your VM or flash it to a USB stick). Once the machine boots, it will display an IP address on its screen.
+
+From your Mac, push the configuration to the node. The command is interactive and will prompt you for the node's IP address and role (controlplane or worker):
+```bash
+make apply-config
+```
+Repeat this for every node in your cluster. The nodes will automatically install Talos to their disks and reboot.
+
+### Step 2: Wake Up the Cluster (Bootstrap Talos)
 Once your nodes have rebooted from their hard drives, you must manually initialize `etcd` on the first control plane node to form the cluster.
 ```bash
-make ignite
+make bootstrap-talos
 ```
-This will automatically issue the bootstrap command and pull down your `kubeconfig` so you are ready to manage Kubernetes!
+This will prompt you for the IP address of one of your Control Plane nodes, automatically issue the bootstrap command, and pull down your `kubeconfig` so you are ready to manage Kubernetes!
 
 ### Step 3: Kubernetes Bootstrap
 Once Talos is up, we must imperatively install the critical DR dependencies in strict order.
 
 ```bash
-make bootstrap
+make bootstrap-k8s
 ```
 **Strict Order Executed:**
 1. SOPS Secret Injection.
@@ -69,14 +87,15 @@ Once ArgoCD is running, it will automatically sync `system/`, `platform/`, and `
 
 ## Disaster Recovery (Velero)
 If you lose your entire cluster:
-1. Run `make cluster` to rebuild the Talos nodes.
-2. Run `make ignite` to wake the cluster.
-3. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
-4. Run `make recover` which triggers:
+1. Run `make cluster` to generate configs and download the Talos ISO.
+2. Boot your nodes with the ISO, then run `make apply-config` for each node.
+3. Run `make bootstrap-talos` to wake the cluster.
+4. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
+5. Run `make recover` which triggers:
    ```bash
    velero restore create --from-backup latest-backup
    ```
-5. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
+6. Wait for PVs and state to restore. Then install ArgoCD (`make bootstrap-argocd`) to resume GitOps reconciliation.
 
 ## Upgrading Talos
 Because we use Talos Factory extensions, always upgrade using the installer image that includes your schematic ID.

@@ -1,4 +1,4 @@
-.PHONY: help init-secrets cluster ignite bootstrap recover check-tools
+.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd recover check-tools
 
 REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age go
 
@@ -15,14 +15,23 @@ check-tools: ## Verify all required CLI tools are installed
 init-secrets: check-tools ## Prompt and generate SOPS encrypted secrets for Age and Cloudflare
 	@$(MAKE) -C k8s init-secrets
 
-cluster: check-tools ## Boot nodes via Matchbox/dnsmasq and generate Talos configs
+cluster: check-tools ## Generate configs and download the bootable Talos ISO
 	@$(MAKE) -C metal cluster
 
-ignite: check-tools ## Wake up the cluster (initialize etcd)
-	@$(MAKE) -C metal talos-bootstrap
+apply-config: check-tools ## Push configuration to each ISO-booted node
+	@$(MAKE) -C metal apply-config
 
-bootstrap: check-tools ## Run the imperative Kubernetes bootstrap sequence
-	@$(MAKE) -C k8s bootstrap
+bootstrap-talos: check-tools ## Wake up the cluster (initialize etcd)
+	@$(MAKE) -C metal bootstrap-talos
+
+bootstrap-k8s: check-tools ## Run the imperative Kubernetes bootstrap sequence
+	@$(MAKE) -C k8s bootstrap-k8s
+
+bootstrap-core: check-tools ## Run core Kubernetes bootstrap (Stop before ArgoCD for DR)
+	@$(MAKE) -C k8s bootstrap-core
+
+bootstrap-argocd: check-tools ## Install ArgoCD to resume GitOps reconciliation
+	@$(MAKE) -C k8s bootstrap-argocd
 
 recover: check-tools ## Trigger disaster recovery using Velero
 	@$(MAKE) -C k8s recover
