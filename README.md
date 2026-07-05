@@ -102,11 +102,7 @@ If you lose your entire cluster:
 4. Run `make bootstrap-talos` to wake the cluster.
 5. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
 6. Run `make recover`. This will automatically list your available backups from Velero and interactively prompt you to type the name of the backup you want to restore.
-7. Wait for the restore to complete. You can monitor the progress with:
-   ```bash
-   velero restore get
-   kubectl get pvc -A
-   ```
+7. Once triggered, `make recover` will automatically launch a live dashboard in your terminal showing the Velero restore status and your PVC bindings. Monitor it until the restore is `Completed` and PVs are `Bound`, then press `Ctrl+C` to exit.
 8. Once the restore is marked `Completed` and PVs are bound, install ArgoCD to resume GitOps reconciliation:
    ```bash
    make bootstrap-argocd

@@ -88,6 +88,7 @@ recover:
 	@echo "\n$(RED)=======================================================================$(RESET)"
 	@echo "$(RED)⚠️  WARNING: DO NOT INSTALL ARGOCD YET!$(RESET)"
 	@echo "$(YELLOW)Please wait for Velero to finish restoring all PVs and cluster state.$(RESET)"
-	@echo "$(CYAN)You can monitor progress with: velero restore get$(RESET)"
-	@echo "$(GREEN)Once complete, run 'make bootstrap-argocd' to resume GitOps!$(RESET)"
+	@echo "$(CYAN)Launching live monitor... (Press Ctrl+C to exit when PVs are Bound and restore is Completed)$(RESET)"
 	@echo "$(RED)=======================================================================\n$(RESET)"
+	@sleep 3
+	@watch -n 5 "velero restore get && echo '\n--- PVC STATUS ---\n' && kubectl get pvc -A"
