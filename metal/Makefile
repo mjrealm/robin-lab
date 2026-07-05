@@ -84,8 +84,8 @@ destroy: clean ## DANGER: Completely destroys your Talos admin certificates and 
 	@echo "$(RED)Are you sure you want to proceed? [y/N]$(RESET)"
 	@read -r ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
-		rm -f talosconfig schematic.id metal-*.iso; \
-		echo "$(RED)PKI and ISO destroyed.$(RESET)"; \
+		rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml; \
+		echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"; \
 	else \
 		echo "$(YELLOW)Aborted.$(RESET)"; \
 	fi
