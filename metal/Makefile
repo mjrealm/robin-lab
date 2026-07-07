@@ -1,6 +1,6 @@
 TALOS_VERSION ?= v1.13.5
 ARCH ?= amd64
-CLUSTER_NAME ?= robin-lab
+CLUSTER_NAME ?= robin
 
 HOST_IP ?= $(shell ipconfig getifaddr $$(route get default | awk '/interface:/ {print $$2}') 2>/dev/null || ipconfig getifaddr en0 2>/dev/null || echo "127.0.0.1")
 ACTIVE_IFACE ?= $(shell route get default | awk '/interface:/ {print $$2}' 2>/dev/null || echo "en0")
