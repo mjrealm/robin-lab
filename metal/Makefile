@@ -42,7 +42,7 @@ generate-config: ## Generate Talos configs deterministically
 	echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
 	read VIP; \
 	echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
-	echo "$(YELLOW)(Hint: If you don't know your disk, metal-$(ARCH).iso is already downloaded! Boot it, open a new terminal, and run 'make get-disks')$(RESET)"; \
+	echo "$(YELLOW)(Hint: If you don't know your disk, metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso is already downloaded! Boot it, open a new terminal, and run 'make get-disks')$(RESET)"; \
 	read DISK_INPUT; \
 	if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
 	echo "$(CYAN)Enter your Tailscale Auth Key (leave blank to skip):$(RESET)"; \
@@ -92,11 +92,11 @@ destroy: clean ## DANGER: Completely destroys your Talos admin certificates and 
 
 iso: ## Fetch Talos ISO (Boot your VMs or flash to USB with this)
 	@if [ "$(SCHEMATIC_ID)" = "REPLACE_ME" ]; then echo "$(RED)Run 'make schematic' first!$(RESET)"; exit 1; fi
-	@if [ ! -f metal-$(ARCH).iso ]; then \
-		echo "$(CYAN)Fetching Talos $(ARCH) ISO for schematic $(SCHEMATIC_ID)...$(RESET)"; \
-		curl -LO https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH).iso; \
+	@if [ ! -f metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso ]; then \
+		echo "$(CYAN)Fetching Talos $(ARCH) ISO for schematic $(SCHEMATIC_ID) version $(TALOS_VERSION)...$(RESET)"; \
+		curl -Lo metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH).iso; \
 	else \
-		echo "$(GREEN)metal-$(ARCH).iso already exists.$(RESET)"; \
+		echo "$(GREEN)metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso already exists.$(RESET)"; \
 	fi
 
 apply-config: ## Push configuration to a booted Talos node

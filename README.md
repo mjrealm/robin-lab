@@ -57,7 +57,7 @@ make cluster
 *(Note: During generation, you will be prompted for your Tailscale Auth Key. You should generate a 90-day **reusable (non-ephemeral)** key from your Tailscale Admin Console. This key is securely injected into the node configs and never committed to Git).*
 This will:
 1. Generate a Talos Factory custom schematic ID (with system extensions).
-2. Download the specific `metal-amd64.iso` (or arm64) for your architecture so you can boot it immediately.
+2. Download the specific `metal-<arch>-<version>-<schematic>.iso` so you can boot it immediately.
 3. Prompt you for your cluster settings (VIP, Install Disk, Tailscale Key). *(If you don't know your disk path, you can flash the ISO right then and boot your node to check it!)*
 4. Deterministically generate your cluster configurations (`controlplane.yaml` / `worker.yaml`).
 
