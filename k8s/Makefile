@@ -5,7 +5,10 @@ RED    := $(shell printf "\033[31m")
 CYAN   := $(shell printf "\033[36m")
 RESET  := $(shell printf "\033[0m")
 
-.PHONY: help init-secrets bootstrap-k8s bootstrap-core recover bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
+# Variables
+GATEWAY_API_VERSION ?= v1.6.0
+
+.PHONY: help init-secrets bootstrap-k8s bootstrap-core recover bootstrap-secrets bootstrap-gateway-api bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -23,11 +26,15 @@ init-secrets: ## Interactively prompt for secrets
 
 bootstrap-k8s: bootstrap-core bootstrap-argocd ## Run strict full bootstrap sequence
 
-bootstrap-core: bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero ## Run core bootstrap (Stop before ArgoCD for DR)
+bootstrap-core: bootstrap-secrets bootstrap-gateway-api bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero ## Run core bootstrap (Stop before ArgoCD for DR)
 
 bootstrap-secrets:
 	@echo "$(CYAN)Applying secrets...$(RESET)"
 	sops -d secrets.yaml | kubectl apply -f -
+
+bootstrap-gateway-api:
+	@echo "$(CYAN)Installing Gateway API CRDs ($(GATEWAY_API_VERSION))...$(RESET)"
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEWAY_API_VERSION)/standard-install.yaml
 
 bootstrap-cni:
 	@echo "$(CYAN)Installing Cilium CNI...$(RESET)"
