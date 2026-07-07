@@ -19,7 +19,7 @@ brew install talosctl helm kubectl sops age gettext watch
 You can customize your deployment parameters by editing the variables at the top of [metal/Makefile](metal/Makefile) or passing them directly inline when running commands:
 * `TALOS_VERSION`: The version of Talos Linux to install.
 * `ARCH` (default: `amd64`): The target hardware CPU architecture (use `arm64` for Apple Silicon UTM VM testing).
-* `CLUSTER_NAME` (default: `robin-lab`): The name of your Kubernetes/Talos cluster.
+* `CLUSTER_NAME` (default: `robin`): The name of your Kubernetes/Talos cluster.
 
 For example, to prep an ARM64 cluster running Talos v1.14.0:
 ```bash
