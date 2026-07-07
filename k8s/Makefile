@@ -46,8 +46,10 @@ bootstrap-csi:
 
 bootstrap-longhorn:
 	@echo "$(CYAN)Installing Longhorn...$(RESET)"
+	kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace longhorn-system pod-security.kubernetes.io/enforce=privileged --overwrite
 	helm dep update system/longhorn-system
-	helm upgrade --install longhorn system/longhorn-system --namespace longhorn-system --create-namespace
+	helm upgrade --install longhorn system/longhorn-system --namespace longhorn-system
 
 bootstrap-velero:
 	@echo "$(CYAN)Installing Velero...$(RESET)"
