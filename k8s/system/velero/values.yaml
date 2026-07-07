@@ -1,0 +1,54 @@
+---
+velero:
+  initContainers:
+    - name: velero-plugin-for-aws
+      image: velero/velero-plugin-for-aws:v1.14.0
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: /target
+          name: plugins
+  configuration:
+    features: EnableCSI
+    extraEnvVars:
+      - name: TZ
+        value: Asia/Manila
+
+  snapshotsEnabled: false
+
+  schedules:
+    daily-backup:
+      schedule: "1 3 * * *"
+      template:
+        storageLocation: default
+        ttl: "168h"  # 7 days
+        snapshotVolumes: true
+        includedNamespaces:
+          - paperless-ngx
+          - immich
+          - mealie
+    biweekly-backup:
+      schedule: "0 4 * * 0,3"
+      template:
+        storageLocation: default
+        ttl: "336h"  # 14 days
+        snapshotVolumes: true
+        includedNamespaces:
+          - '*'
+    monthly-backup:
+      schedule: "30 3 1 * *"
+      template:
+        storageLocation: default
+        ttl: "8760h"  # 365 days
+        snapshotVolumes: true
+        includedNamespaces:
+          - '*'
+
+  extraObjects:
+    - apiVersion: snapshot.storage.k8s.io/v1
+      kind: VolumeSnapshotClass
+      metadata:
+        name: longhorn-velero
+        labels:
+          velero.io/csi-volumesnapshot-class: "true"
+      driver: driver.longhorn.io
+      deletionPolicy: Retain

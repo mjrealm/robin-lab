@@ -1,0 +1,65 @@
+---
+cilium:
+  operator:
+    replicas: 1
+
+  # https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium#without-kube-proxy
+  ipam:
+    mode: kubernetes
+  kubeProxyReplacement: true
+  k8sServiceHost: localhost
+  k8sServicePort: 7445
+  securityContext:
+    capabilities:
+      ciliumAgent:
+        - CHOWN
+        - KILL
+        - NET_ADMIN
+        - NET_RAW
+        - IPC_LOCK
+        - SYS_ADMIN
+        - SYS_RESOURCE
+        - DAC_OVERRIDE
+        - FOWNER
+        - SETGID
+        - SETUID
+      cleanCiliumState:
+        - NET_ADMIN
+        - SYS_ADMIN
+        - SYS_RESOURCE
+  cgroup:
+    autoMount:
+      enabled: false
+    hostRoot: /sys/fs/cgroup
+  gatewayAPI:
+    enabled: true
+    enableAlpn: true
+    enableAppProtocol: true
+
+  # Enable L2 mode announcements
+  l2announcements:
+    enabled: true
+
+  # Enable ingress controller
+  ingressController:
+    enabled: false
+    default: true
+    loadbalancerMode: shared
+    service:
+      allocateLoadBalancerNodePorts: false
+
+  # Important for L2 mode
+  k8sClientRateLimit:
+    qps: 40
+    burst: 60
+
+  # Hubble UI
+  hubble:
+    relay:
+      enabled: true
+    ui:
+      enabled: true
+
+loadBalancerIPPools:
+  - 192.168.29.100/30  # Covers .100, .101, .102, and .103
+  - 192.168.29.104/31  # Covers .104 and .105

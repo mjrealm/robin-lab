@@ -1,5 +1,0 @@
----
-metallb:
-  speaker:
-    frr:
-      enabled: false

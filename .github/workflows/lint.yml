@@ -1,6 +1,6 @@
 ---
 name: Lint YAML
-on: [push]
+"on": [push]
 jobs:
   run-lint:
     runs-on: ubuntu-latest

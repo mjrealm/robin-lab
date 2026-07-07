@@ -1,6 +1,0 @@
----
-reloader:
-  reloader:
-    ignoreSecrets: true
-    podMonitor:
-      enabled: false
