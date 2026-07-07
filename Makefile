@@ -1,6 +1,6 @@
 .PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node get-disks recover check-tools
 
-REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age go
+REQUIRED_BINS := curl helm kubectl talosctl sops dnsmasq age yamllint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -14,6 +14,10 @@ check-tools: ## Verify all required CLI tools are installed
 
 init-secrets: check-tools ## Prompt and generate SOPS encrypted secrets for Age and Cloudflare
 	@$(MAKE) -C k8s init-secrets
+
+lint: check-tools ## Run yamllint on all YAML files
+	@echo "$(CYAN)Running yamllint...$(RESET)"
+	@yamllint .
 
 cluster: check-tools ## Generate configs and download the bootable Talos ISO
 	@$(MAKE) -C metal cluster
