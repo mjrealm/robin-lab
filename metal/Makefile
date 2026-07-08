@@ -159,6 +159,13 @@ generate-config:
 
 # ==============================================================================
 # Apply Talos Configurations to a Single Node
+# ------------------------------------------------------------------------------
+# Process Flow:
+# 1. Parse metal.yaml to extract the node's role, hostname, and install_disk.
+# 2. Build a JSON config patch to inject the hostname and override the install disk.
+# 3. Parse additional_disks and dynamically generate UserVolumeConfig definitions.
+# 4. Merge the base template (controlplane.yaml or worker.yaml) with the UserVolumeConfigs.
+# 5. Push the combined configuration and JSON patch to the live node via talosctl.
 # ==============================================================================
 apply-config:
 	@set -e; \
@@ -175,7 +182,13 @@ apply-config:
 		echo "$(RED)Error: $$ROLE_VAL.yaml not found. Run 'make generate-config' first.$(RESET)"; \
 		exit 1; \
 	fi; \
-	PATCH_ARG="--config-patch '{\"machine\": {\"network\": {\"hostname\": \"$$HOSTNAME_VAL\"}}}'"; \
+	INSTALL_DISK=$$(yq '.nodes[] | select(.ip == "'$(NODE_IP)'") | .install_disk' metal.yaml); \
+	if [ -n "$$INSTALL_DISK" ] && [ "$$INSTALL_DISK" != "null" ]; then \
+		echo "$(CYAN)Overriding install disk to $$INSTALL_DISK...$(RESET)"; \
+		PATCH_ARG="--config-patch '{\"machine\": {\"network\": {\"hostname\": \"$$HOSTNAME_VAL\"}, \"install\": {\"disk\": \"$$INSTALL_DISK\"}}}'"; \
+	else \
+		PATCH_ARG="--config-patch '{\"machine\": {\"network\": {\"hostname\": \"$$HOSTNAME_VAL\"}}}'"; \
+	fi; \
 	DISKS_JSON=$$(yq -o=json '.nodes[] | select(.ip == "'$(NODE_IP)'") | .additional_disks // []' metal.yaml); \
 	rm -f .user-volumes.yaml; touch .user-volumes.yaml; \
 	if [ "$$DISKS_JSON" != "[]" ]; then \
