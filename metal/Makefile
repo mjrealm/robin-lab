@@ -73,13 +73,14 @@ clean:
 # Destroy Cluster PKI
 # ==============================================================================
 destroy: clean
-	@if [ "$(FORCE)" != "1" ]; then \
-		echo "$(RED)WARNING: This will completely destroy your cluster's PKI and you will lose access!$(RESET)"; \
-		echo "$(RED)Rerun with FORCE=1 to proceed: make destroy FORCE=1$(RESET)"; \
-		exit 1; \
+	@echo "$(RED)WARNING: This will completely destroy your cluster's PKI and you will lose access!$(RESET)"
+	@read -p "$(RED)Are you sure you want to proceed? [y/N] $(RESET)" ans; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml; \
+		echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"; \
+	else \
+		echo "$(YELLOW)Aborted.$(RESET)"; \
 	fi
-	@rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml
-	@echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"
 
 # ==============================================================================
 # Generate Talos Configs
