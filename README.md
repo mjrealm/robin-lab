@@ -69,14 +69,14 @@ make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependenc
         additional_disks:
           - /dev/sdb
     ```
-4. Copy `metal/metal.secrets.example.yaml` (if it exists) or create `metal/metal.secrets.dec.yaml` with the following structure:
+4. Run `make init-secrets` from the root directory to generate your `metal/metal.secrets.dec.yaml` template, and fill it in with your keys:
    ```yaml
    secrets:
      tailscale_auth_key: "..."
      cloudflare_api_token: "..."
      age_private_key: "..."
    ```
-   *Note: `.dec.yaml` files are `.gitignore`d. When you run `make apply-all`, the Makefile will automatically encrypt this file into `metal.secrets.yaml` via SOPS and commit-safe! All processes read from the encrypted version.*
+   *Note: `.dec.yaml` files are `.gitignore`d. When you run `make cluster`, the Makefile will automatically encrypt this file into `metal.secrets.yaml` via SOPS! All processes safely read from the encrypted version.*
 
 ### Step 2: Push Configurations
 
