@@ -77,7 +77,7 @@ destroy: clean
 	@read -p "$(RED)Are you sure you want to proceed? [y/N] $(RESET)" ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
 		rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml; \
-		echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"; \
+		echo "$(RED)Cluster PKI (talos-secrets) and ISOs destroyed. Ready for a fresh install.$(RESET)"; \
 	else \
 		echo "$(YELLOW)Aborted.$(RESET)"; \
 	fi
