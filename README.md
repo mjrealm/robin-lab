@@ -26,12 +26,9 @@ For example, to prep an ARM64 cluster running Talos v1.14.0:
 make cluster ARCH=arm64 TALOS_VERSION=v1.14.0
 ```
 
-## TL;DR: Fresh Install / Cluster Rebuild
-If the repository is already configured and you are doing a routine cluster rebuild or a fresh installation, ensure you have filled out your configuration files:
-1. Copy `metal/metal.secrets.example.yaml` to `metal/metal.secrets.yaml` and fill it out with your keys (Tailscale Auth Key, Cloudflare API Token, Age Private Key).
-2. Edit `metal/metal.yaml` to define your cluster VIP, install disk, load balancer IP pools, and all your physical nodes (IPs, roles, hostnames, and extra disks).
+## TL;DR (Quick Start)
 
-Once ready, just run these commands from the root directory:
+Assuming your configuration files (`metal/metal.secrets.dec.yaml` and `metal/metal.yaml`) are filled out, run these in order from the root directory:
 
 ```bash
 make cluster          # (Run once) Generate configs and download the bootable Talos ISO
