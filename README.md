@@ -115,18 +115,24 @@ Once ArgoCD is running, it will automatically sync `system/`, `platform/`, and `
 ---
 
 ## Disaster Recovery (Velero)
-If you lose your entire cluster:
-1. **Ensure `metal/metal.secrets.yaml` is filled out** locally with your age private key, cloudflare token, and tailscale key.
-2. Run `make cluster` to deterministically regenerate your cluster configurations using your exact certificates.
-3. Boot your nodes with the downloaded ISO, then run `make apply-all` to push the configurations.
-4. Run `make bootstrap-talos` to wake the cluster.
-5. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
-6. Run `make recover`. This will automatically list your available backups from Velero and interactively prompt you to type the name of the backup you want to restore.
-7. Once triggered, `make recover` will automatically launch a live dashboard in your terminal showing the Velero restore status and your PVC bindings. Monitor it until the restore is `Completed` and PVs are `Bound`, then press `Ctrl+C` to exit.
-8. Once the restore is marked `Completed` and PVs are bound, install ArgoCD to resume GitOps reconciliation:
-   ```bash
-   make bootstrap-argocd
-   ```
+If you lose your entire cluster, ensure your `metal/metal.secrets.yaml` is securely tracked and filled out locally. Then, rebuild your cluster and restore state in this exact sequence:
+
+```bash
+make cluster          # Deterministically regenerate your configs using your exact certificates
+# Boot your nodes with the downloaded ISO here before proceeding
+make apply-all        # Push the generated configurations to all your nodes
+make bootstrap-talos  # Wake the cluster and initialize etcd
+make bootstrap-core   # Install Storage/Backup dependencies (intentionally skips ArgoCD)
+
+# -------------------------------------------------------------------------------------- #
+# WARNING: The next command launches an interactive dashboard. 
+# You MUST wait for the restore to show "Completed" and all PVs to show "Bound".
+# Once completely finished, press Ctrl+C to exit and run the final ArgoCD command!
+# -------------------------------------------------------------------------------------- #
+
+make recover          # Select a Velero backup and launch the interactive restore monitor
+make bootstrap-argocd # Resume GitOps reconciliation (ONLY AFTER RECOVERY IS COMPLETE)
+```
 
 ## Updating Node Configurations (Patches)
 If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can create or edit a YAML patch file in the `metal/patches/` directory.
