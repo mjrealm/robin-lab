@@ -121,7 +121,7 @@ Once ArgoCD is running, it will automatically sync `system/`, `platform/`, and `
 If you lose your entire cluster:
 1. **Ensure `metal/metal.secrets.yaml` is filled out** locally with your age private key, cloudflare token, and tailscale key.
 2. Run `make cluster` to deterministically regenerate your cluster configurations using your exact certificates.
-3. Boot your nodes with the downloaded ISO, then run `make apply-config` for each node.
+3. Boot your nodes with the downloaded ISO, then run `make apply-all` to push the configurations.
 4. Run `make bootstrap-talos` to wake the cluster.
 5. Run `make bootstrap-core`. (This installs Storage and Backup dependencies, but intentionally skips ArgoCD).
 6. Run `make recover`. This will automatically list your available backups from Velero and interactively prompt you to type the name of the backup you want to restore.
@@ -210,19 +210,19 @@ Ensure your storage targets and network pools are correctly defined in your repo
 2. **Velero Cloudflare R2 Target:**
    Edit `k8s/system/velero/values.yaml` and update your `bucket` and `s3Url`.
 3. **Cilium LoadBalancer IP Pool:**
-   You do not need to hardcode this. The `Makefile` will dynamically prompt you to enter your reserved IP block (CIDR) during `make bootstrap-k8s`.
+   Define your reserved IP block (CIDR) directly in the `lb_ippools` array within your `metal/metal.yaml`. The Makefile will automatically parse this and deploy the CRD during `make bootstrap-k8s`.
 
 ### 3. Update ArgoCD GitHub Repository
 Edit `k8s/argocd/root-app.yaml` and change `repoURL` to point to your own GitHub fork so ArgoCD syncs your changes instead of the upstream repository!
 
 ### 4. Generate Initial Secrets
-Before creating a cluster for the first time, generate the encrypted secrets (Cloudflare API for DNS, Age key for SOPS).
+Before creating a cluster for the first time, generate the secret template:
 ```bash
 make init-secrets
 ```
-Follow the prompts. Make sure to commit the resulting SOPS-encrypted `secrets.yaml` to the repo!
+This will generate a `metal/metal.secrets.dec.yaml` file. Open this file and fill in your keys (Cloudflare API for DNS, Age key for SOPS, etc). The Makefile will automatically encrypt it to `metal.secrets.yaml` and `.gitignore` the plain-text version when you run `make cluster`.
 
-### 4. Why Cloudflare DNS-01?
+### 5. Why Cloudflare DNS-01?
 We specifically use the Cloudflare API token for `cert-manager`'s DNS-01 challenge. This architecture choice allows your homelab to generate perfectly valid Let's Encrypt SSL certificates (even wildcards) for internal private IP addresses without ever having to expose port 80/443 to the public internet.
 
 </details>
