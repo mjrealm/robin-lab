@@ -34,8 +34,10 @@ cluster: schematic iso generate-config
 	@echo "$(YELLOW)Next Steps:$(RESET)"
 	@echo "1. Boot your machine(s) using the downloaded metal-$(ARCH).iso"
 	@echo "2. Once booted, the machine will display an IP address on its console."
-	@echo "3. Run: $(CYAN)make apply-config$(RESET)"
-	@echo "4. Repeat for all nodes, then run: $(CYAN)make bootstrap-talos$(RESET)"
+	@echo "3. (Optional) Wipe extra disks if they have old data: $(CYAN)make wipe-disk NODE_IP=... DISK=sdb$(RESET)"
+	@echo "4. Push configs to all nodes: $(CYAN)make apply-all$(RESET)"
+	@echo "5. Wake up the cluster: $(CYAN)make bootstrap-talos$(RESET)"
+	@echo "6. Install Kubernetes apps: $(CYAN)make bootstrap-k8s$(RESET)"
 
 # ==============================================================================
 # Generate Talos Schematic
@@ -48,6 +50,36 @@ schematic:
 	@echo "$(CYAN)Generating schematic ID for Tailscale, iscsi-tools, and util-linux-tools...$(RESET)"
 	@curl -s -X POST -d '{"customization": {"systemExtensions": {"officialExtensions": ["siderolabs/iscsi-tools", "siderolabs/tailscale", "siderolabs/util-linux-tools"]}}}' https://factory.talos.dev/schematics | grep -o '"id":"[^"]*' | cut -d'"' -f4 > schematic.id
 	@echo "$(GREEN)Schematic ID saved to schematic.id: `cat schematic.id`$(RESET)"
+
+# ==============================================================================
+# Generate Talos ISO
+# ==============================================================================
+iso: schematic
+	@if [ ! -f metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso ]; then \
+		echo "$(CYAN)Fetching Talos $(ARCH) ISO for schematic $(SCHEMATIC_ID) version $(TALOS_VERSION)...$(RESET)"; \
+		curl -Lo metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH).iso; \
+	else \
+		echo "$(GREEN)metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso already exists.$(RESET)"; \
+	fi
+
+# ==============================================================================
+# Clean up temporary configs
+# ==============================================================================
+clean:
+	@echo "$(YELLOW)Cleaning up temporary configurations...$(RESET)"
+	@rm -f controlplane.yaml worker.yaml talosconfig
+
+# ==============================================================================
+# Destroy Cluster PKI
+# ==============================================================================
+destroy: clean
+	@if [ "$(FORCE)" != "1" ]; then \
+		echo "$(RED)WARNING: This will completely destroy your cluster's PKI and you will lose access!$(RESET)"; \
+		echo "$(RED)Rerun with FORCE=1 to proceed: make destroy FORCE=1$(RESET)"; \
+		exit 1; \
+	fi
+	@rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml
+	@echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"
 
 # ==============================================================================
 # Generate Talos Configs
