@@ -63,7 +63,7 @@ schematic:
 # ==============================================================================
 generate-config:
 	@set -e; \
-	if [ ! -f patches/talos-patch.yaml ]; then echo "$(RED)Missing patches/talos-patch.yaml$(RESET)"; exit 1; fi; \
+	if [ ! -f patches/controlplane.patch.yaml ]; then echo "$(RED)Missing patches/controlplane.patch.yaml$(RESET)"; exit 1; fi; \
 	echo "$(CYAN)Enter Cluster Name [default: $(CLUSTER_NAME)]:$(RESET)"; \
 	read CLUSTER_INPUT; \
 	if [ -z "$$CLUSTER_INPUT" ]; then CLUSTER_INPUT="$(CLUSTER_NAME)"; fi; \
@@ -92,7 +92,7 @@ generate-config:
 		sops -d talos-secrets.yaml > .talos-secrets.dec.yaml; \
 	fi; \
 	echo "$(CYAN)Generating configurations...$(RESET)"; \
-	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch @patches/talos-patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
+	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch-control-plane @patches/controlplane.patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
 	if [ -f .tailscale.patch.yaml ]; then \
 		echo "---" >> controlplane.yaml; \
 		cat .tailscale.patch.yaml >> controlplane.yaml; \
@@ -150,13 +150,12 @@ iso: schematic
 	fi
 
 # ==============================================================================
-# Apply Talos Configuration
+# Apply Talos Configuration (Single Node)
 # ------------------------------------------------------------------------------
 # Process Flow:
 # 1. Prompt for the IP address of the target booted node.
-# 2. Prompt for the node role (controlplane or worker).
-# 3. Verify the role and ensure the corresponding YAML file exists.
-# 4. Apply the configuration insecurely to the target node.
+# 2. Look up the corresponding role and hostname from nodes.csv.
+# 3. Apply the configuration (and hostname patch) insecurely to the target node.
 # ==============================================================================
 apply-config:
 	@if [ -z "$(NODE_IP)" ]; then \
@@ -165,23 +164,39 @@ apply-config:
 	else \
 		NODE_IP_VAL="$(NODE_IP)"; \
 	fi; \
-	if [ -z "$(ROLE)" ]; then \
-		echo "$(CYAN)Enter the role for this node (controlplane/worker):$(RESET)"; \
-		read ROLE_VAL; \
-	else \
-		ROLE_VAL="$(ROLE)"; \
-	fi; \
-	if [ "$$ROLE_VAL" != "controlplane" ] && [ "$$ROLE_VAL" != "worker" ]; then \
-		echo "$(RED)Error: Role must be 'controlplane' or 'worker'.$(RESET)"; \
-		exit 1; \
+	if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	ROLE_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f2); \
+	HOSTNAME_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f3); \
+	if [ -z "$$ROLE_VAL" ]; then \
+		echo "$(RED)Error: Node IP $$NODE_IP_VAL not found in nodes.csv$(RESET)"; exit 1; \
 	fi; \
 	if [ ! -f "$$ROLE_VAL.yaml" ]; then \
 		echo "$(RED)Error: $$ROLE_VAL.yaml not found. Run 'make generate-config' first.$(RESET)"; \
 		exit 1; \
 	fi; \
-	echo "$(CYAN)Applying $$ROLE_VAL configuration to $$NODE_IP_VAL...$(RESET)"; \
-	talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml; \
+	if [ -n "$$HOSTNAME_VAL" ]; then \
+		echo "$(CYAN)Applying $$ROLE_VAL configuration with hostname $$HOSTNAME_VAL to $$NODE_IP_VAL...$(RESET)"; \
+		talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml --config-patch '{"machine": {"network": {"hostname": "'$$HOSTNAME_VAL'"}}}'; \
+	else \
+		echo "$(CYAN)Applying $$ROLE_VAL configuration to $$NODE_IP_VAL...$(RESET)"; \
+		talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml; \
+	fi; \
 	echo "$(GREEN)Configuration applied! The node will reboot and install Talos.$(RESET)"
+
+# ==============================================================================
+# Apply Talos Configuration (All Nodes)
+# ------------------------------------------------------------------------------
+# Process Flow:
+# 1. Loop through all nodes in nodes.csv and sequentially apply their configs.
+# ==============================================================================
+apply-all:
+	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
+		if [ -n "$$ip" ]; then \
+			echo "\n$(YELLOW)=== Deploying to $$ip ($$role) ===$(RESET)"; \
+			$(MAKE) apply-config NODE_IP="$$ip"; \
+		fi; \
+	done
 
 # ==============================================================================
 # Inspect Node Disks
@@ -251,10 +266,10 @@ patch-node:
 		NODE_IP_VAL="$(NODE_IP)"; \
 	fi; \
 	if [ -z "$(PATCH_FILE)" ]; then \
-		echo "$(CYAN)Enter the path to the patch file [default: patches/talos-patch.yaml]:$(RESET)"; \
+		echo "$(CYAN)Enter the path to the patch file [default: patches/controlplane.patch.yaml]:$(RESET)"; \
 		read PATCH_FILE_INPUT; \
 		if [ -z "$$PATCH_FILE_INPUT" ]; then \
-			PATCH_FILE_VAL="patches/talos-patch.yaml"; \
+			PATCH_FILE_VAL="patches/controlplane.patch.yaml"; \
 		else \
 			PATCH_FILE_VAL="$$PATCH_FILE_INPUT"; \
 		fi; \
@@ -265,6 +280,46 @@ patch-node:
 	echo "$(CYAN)Applying $$PATCH_FILE_VAL to $$NODE_IP_VAL...$(RESET)"; \
 	talosctl patch machineconfig --nodes $$NODE_IP_VAL --patch @$$PATCH_FILE_VAL; \
 	echo "$(GREEN)Patch applied successfully!$(RESET)"
+
+# ==============================================================================
+# Patch All Live Talos Nodes
+# ------------------------------------------------------------------------------
+# Process Flow:
+# 1. Loop through all nodes in nodes.csv and sequentially apply the patch file.
+# ==============================================================================
+patch-all:
+	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
+		if [ -n "$$ip" ]; then \
+			echo "\n$(YELLOW)=== Patching $$ip ($$role) ===$(RESET)"; \
+			$(MAKE) patch-node NODE_IP="$$ip" PATCH_FILE="$(PATCH_FILE)"; \
+		fi; \
+	done
+
+# ==============================================================================
+# Rename Live Talos Node
+# ------------------------------------------------------------------------------
+# Process Flow:
+# 1. Read the IP from arguments or prompt interactively.
+# 2. Extract the corresponding hostname from nodes.csv.
+# 3. Directly patch the HostnameConfig API resource on the live node.
+# ==============================================================================
+rename-node:
+	@set -e; \
+	if [ -z "$(NODE_IP)" ]; then \
+		echo "$(CYAN)Enter the IP address of the node to rename:$(RESET)"; \
+		read NODE_IP_VAL; \
+	else \
+		NODE_IP_VAL="$(NODE_IP)"; \
+	fi; \
+	if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	HOSTNAME_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f3); \
+	if [ -z "$$HOSTNAME_VAL" ]; then \
+		echo "$(RED)Error: Hostname for IP $$NODE_IP_VAL not found in nodes.csv$(RESET)"; exit 1; \
+	fi; \
+	echo "$(CYAN)Updating hostname for $$NODE_IP_VAL to $$HOSTNAME_VAL via API...$(RESET)"; \
+	talosctl patch HostnameConfig --nodes $$NODE_IP_VAL -p '{"hostname": "'$$HOSTNAME_VAL'", "auto": false}'; \
+	echo "$(GREEN)Hostname updated!$(RESET)"
 
 # ==============================================================================
 # Upgrade Talos OS Version
@@ -292,3 +347,24 @@ upgrade-node: schematic
 	echo "$(CYAN)Upgrading $$NODE_IP_VAL to $$NEW_VERSION_VAL using schematic $(SCHEMATIC_ID)...$(RESET)"; \
 	talosctl upgrade --nodes $$NODE_IP_VAL --image factory.talos.dev/installer/$(SCHEMATIC_ID):$$NEW_VERSION_VAL; \
 	echo "$(GREEN)Upgrade initiated! The node will reboot when ready.$(RESET)"
+
+# ==============================================================================
+# Upgrade All Talos OS Nodes
+# ------------------------------------------------------------------------------
+# Process Flow:
+# 1. Loop through all nodes in nodes.csv and sequentially upgrade them.
+# ==============================================================================
+upgrade-all:
+	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	if [ -z "$(NEW_VERSION)" ]; then \
+		echo "$(CYAN)Enter the new Talos version (e.g. v1.14.0):$(RESET)"; \
+		read NEW_VERSION_VAL; \
+	else \
+		NEW_VERSION_VAL="$(NEW_VERSION)"; \
+	fi; \
+	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
+		if [ -n "$$ip" ]; then \
+			echo "\n$(YELLOW)=== Upgrading $$ip ($$role) ===$(RESET)"; \
+			$(MAKE) upgrade-node NODE_IP="$$ip" NEW_VERSION="$$NEW_VERSION_VAL"; \
+		fi; \
+	done

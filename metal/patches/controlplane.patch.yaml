@@ -5,3 +5,7 @@ cluster:
       name: none
   proxy:
     disabled: true
+machine:
+  nodeLabels:
+    node.kubernetes.io/exclude-from-external-load-balancers:
+      $patch: delete

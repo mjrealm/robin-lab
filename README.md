@@ -37,7 +37,7 @@ Once ready, just run these commands:
 
 ```bash
 make cluster          # (Run once) Generate configs and download the bootable Talos ISO
-make apply-config     # (Run multiple times) Push configuration to each ISO-booted node
+make apply-all        # (Run once) Push configuration to all nodes defined in nodes.csv
 make bootstrap-talos  # (Run once) Initialize the cluster and fetch kubeconfig
 make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependencies
 ```
@@ -49,43 +49,36 @@ make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependenc
 
 ## The Workflow in Detail
 
-### Step 1: Boot Nodes (Talos)
-First, generate your cluster configurations and download the bootable Talos ISO:
+### Step 1: Boot Nodes and Define Cluster
+
+1. Boot your servers using the customized `talos-metal-amd64.iso` from the `metal/` directory.
+2. Once booted, the console will display an IP address. Note these down.
+3. Edit `metal/nodes.csv` to explicitly declare your physical machines:
+   ```csv
+   # Format: IP,ROLE,HOSTNAME
+   192.168.30.200,controlplane,robin-cp-01
+   192.168.30.201,worker,robin-worker-01
+   ```
+
+### Step 2: Push Configurations
+
+From the `metal/` directory, deploy the OS securely to all your nodes at once:
 
 ```bash
-make cluster
-```
-*(Note: During generation, you will be prompted for your Tailscale Auth Key. You should generate a 90-day **reusable (non-ephemeral)** key from your Tailscale Admin Console. This key is securely injected into the node configs and never committed to Git).*
-This will:
-1. Generate a Talos Factory custom schematic ID (with system extensions).
-2. Download the specific `metal-<arch>-<version>-<schematic>.iso` so you can boot it immediately.
-3. Prompt you for your cluster settings (VIP, Install Disk, Tailscale Key). *(If you don't know your disk path, you can flash the ISO right then and boot your node to check it!)*
-4. Deterministically generate your cluster configurations (`controlplane.yaml` / `worker.yaml`).
-
-> [!CAUTION]
-> The `make cluster` command generates `metal/talos-secrets.yaml` which is your **cluster's master PKI bundle**. It is automatically encrypted by SOPS and tracked in Git. Because everything is deterministic and encrypted in Git, you no longer need to back up `talosconfig`. **You ONLY need to back up your SOPS `age` private key to your secure vault (e.g., Bitwarden).** As long as you have your `age` key, you can recover your entire cluster!
-
-Next, boot your machine(s) using the downloaded ISO (attach it to your VM or flash it to a USB stick). Once the machine boots, it will display an IP address on its screen.
-
-*(Optional)* If you need to inspect the node's disks to find the correct installation path (e.g., `/dev/sda` or `/dev/nvme0n1`) for your `metal/patch.yaml`, you can run:
-```bash
-make get-disks
+cd metal/
+make apply-all
 ```
 
-From your Mac, push the configuration to the node. The command is interactive and will prompt you for the node's IP address and role (controlplane or worker):
-```bash
-make apply-config
-```
-Repeat this for every node in your cluster. The nodes will automatically install Talos to their disks and reboot.
+*(Alternatively, you can deploy a specific node using `make apply-config NODE_IP=x.x.x.x`)*
 
-### Step 2: Wake Up the Cluster (Bootstrap Talos)
+### Step 3: Wake Up the Cluster (Bootstrap Talos)
 Once your nodes have rebooted from their hard drives, you must manually initialize `etcd` on the first control plane node to form the cluster.
 ```bash
 make bootstrap-talos
 ```
 This will prompt you for the IP address of one of your Control Plane nodes, automatically issue the bootstrap command, and pull down your `kubeconfig` so you are ready to manage Kubernetes!
 
-### Step 3: Kubernetes Bootstrap
+### Step 4: Kubernetes Bootstrap
 Once Talos is up, we must imperatively install the critical DR dependencies in strict order.
 
 ```bash
