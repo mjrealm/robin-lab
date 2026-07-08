@@ -31,6 +31,7 @@ If the repository is already configured and you are doing a routine cluster rebu
 1. Your **Tailscale Auth Key** (90-day Reusable, non-ephemeral).
 2. Your **Cloudflare API Token** (for `cert-manager` and `external-dns`).
 3. Your SOPS **`age` Private Key** (must be located at `~/.config/sops/age/keys.txt`).
+4. A reserved **LoadBalancer IP Pool CIDR** (e.g. `192.168.30.200/29`) for Cilium to assign to your services. *(Use a tool like [IPAddressGuide](https://www.ipaddressguide.com/cidr) to easily convert a raw IP range into CIDR notation).*
 
 Once ready, just run these commands:
 
@@ -179,7 +180,7 @@ Ensure your storage targets and network pools are correctly defined in your repo
 2. **Velero Cloudflare R2 Target:**
    Edit `k8s/system/velero/values.yaml` and update your `bucket` and `s3Url`.
 3. **Cilium LoadBalancer IP Pool:**
-   Edit `k8s/system/kube-system/values.yaml` and update `loadBalancerIPPools` with a reserved block of IP addresses on your home router for Kubernetes LoadBalancers.
+   You do not need to hardcode this. The `Makefile` will dynamically prompt you to enter your reserved IP block (CIDR) during `make bootstrap-k8s`.
 
 ### 3. Update ArgoCD GitHub Repository
 Edit `k8s/argocd/root-app.yaml` and change `repoURL` to point to your own GitHub fork so ArgoCD syncs your changes instead of the upstream repository!

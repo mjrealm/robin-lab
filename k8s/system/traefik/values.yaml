@@ -20,4 +20,4 @@ traefik:
     kubernetesIngress:
       enabled: true
     kubernetesGateway:
-      enabled: true
+      enabled: false
