@@ -4,7 +4,8 @@ Bare-metal Kubernetes homelab using Talos Linux, GitOps (ArgoCD), and strict Dis
 
 ## Architecture Highlights
 - **OS:** Talos Linux custom built via Talos Image Factory (includes `tailscale`, `iscsi-tools`, `util-linux-tools`).
-- **Provisioning:** USB/ISO Boot via `talosctl apply-config` and `Makefile`.
+- **Provisioning:** Declarative node configuration and SOPS-encrypted PKI via GitOps Makefiles.
+- **Networking:** Cilium CNI (with kube-proxy replacement and L2 Announcement for LoadBalancer VIPs).
 - **Storage:** Longhorn CSI (with `kubernetes-csi` external snapshotter for NAS backups).
 - **GitOps:** ArgoCD using `ApplicationSets` (`system/`, `platform/`, `apps/`).
 - **Disaster Recovery:** Velero backing up state to Cloudflare R2, and persistent volume snapshots to local NAS via Longhorn.
