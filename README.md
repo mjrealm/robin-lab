@@ -132,14 +132,15 @@ If you lose your entire cluster:
    ```
 
 ## Updating Node Configurations (Patches)
-If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can edit the `metal/patch.yaml` file. 
+If you want to modify your cluster configuration (e.g. adding a new disk mount, changing network settings) after the cluster is already running, you can create or edit a YAML patch file in the `metal/patches/` directory.
 
-To apply these new patches to a live node without wiping it, use the interactive make target:
+To apply a patch to a live node without wiping it, use:
 ```bash
-make patch-node
+make patch-node NODE_IP=192.168.30.200 PATCH_FILE=metal/patches/controlplane.patch.yaml
 ```
-The node will automatically apply the changes and seamlessly restart any necessary services (or perform a rolling reboot if the configuration requires it).
+*(Note: If you run `make patch-node` without arguments, it will interactively prompt you for the IP and file. You can also run `make patch-all PATCH_FILE=...` to apply a patch to every node).*
 
+The node will automatically apply the changes and seamlessly restart any necessary services (or perform a rolling reboot if the configuration requires it).
 ## Upgrading Talos OS
 Because we use Talos Factory extensions, always upgrade using the installer image that includes your custom schematic ID. We have an interactive make target that handles this safely:
 ```bash
