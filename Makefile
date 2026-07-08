@@ -1,4 +1,4 @@
-.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node get-disks recover check-tools
+.PHONY: help init-secrets cluster apply-config bootstrap-talos bootstrap-k8s bootstrap-core bootstrap-argocd patch-node upgrade-node get-disks recover check-tools clean destroy iso patch-all upgrade-all rename-node
 
 # ==============================================================================
 # CONFIGURATION
@@ -31,6 +31,15 @@ lint: check-tools ## Run yamllint on all YAML files
 cluster: check-tools ## Generate configs and download the bootable Talos ISO
 	@$(MAKE) -C metal cluster
 
+iso: check-tools ## Download the Talos ISO without generating configs
+	@$(MAKE) -C metal iso
+
+clean: ## Remove generated configs and ISOs
+	@$(MAKE) -C metal clean
+
+destroy: ## WARNING: Destroy the cluster PKI (talos-secrets.yaml) and ISOs
+	@$(MAKE) -C metal destroy
+
 apply-config: check-tools ## Push configuration to a specific ISO-booted node
 	@$(MAKE) -C metal apply-config
 
@@ -61,8 +70,17 @@ bootstrap-argocd: check-tools ## Install ArgoCD to resume GitOps reconciliation
 patch-node: check-tools ## Apply configuration patches to a live Talos node
 	@$(MAKE) -C metal patch-node
 
+patch-all: check-tools ## Apply configuration patches to all live Talos nodes
+	@$(MAKE) -C metal patch-all
+
+rename-node: check-tools ## Rename a live Talos node via API
+	@$(MAKE) -C metal rename-node
+
 upgrade-node: check-tools ## Upgrade the Talos OS version on a node
 	@$(MAKE) -C metal upgrade-node
+
+upgrade-all: check-tools ## Upgrade the Talos OS version on all nodes
+	@$(MAKE) -C metal upgrade-all
 
 get-disks: check-tools ## Inspect disks on a booted (unconfigured) node
 	@$(MAKE) -C metal get-disks

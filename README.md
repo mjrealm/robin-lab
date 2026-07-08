@@ -68,6 +68,7 @@ make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependenc
       - ip: 192.168.30.201
         role: worker
         hostname: robin-worker-01
+        install_disk: /dev/nvme0n1  # (Optional) Override the cluster base disk for this specific node
         additional_disks:
           - /dev/sdb
     ```
@@ -147,15 +148,31 @@ make upgrade-node
 This will automatically prompt you for the node's IP address and the target Talos version.
 
 ## Adding Worker Nodes
-Adding a worker node to an existing cluster is simple because your `metal/worker.yaml` (which contains the required join tokens and cluster certificates) is already generated locally.
+Adding a worker node to an existing cluster is simple because your cluster PKI and identity is safely encrypted in Git.
 
-1. **Boot the new machine** using your downloaded ISO (Run `make iso` if you need to re-download it).
-2. *(Optional)* Run `make get-disks` to inspect the disk layout of the new node once it's booted.
-3. Run **`make apply-config`**.
-4. When prompted, enter the new node's IP address.
-5. When prompted for the role, enter **`worker`**.
+1. **Add the new node** to the `nodes` list in your `metal.yaml`.
+2. **Run `make generate-config`** (This decrypts your `talos-secrets.yaml` and deterministically recreates your `worker.yaml` template).
+3. **Boot the new machine** using your downloaded ISO (Run `make iso` if you need to re-download it).
+4. *(Optional)* Run `make get-disks NODE_IP=x.x.x.x` to inspect the disk layout of the new node once it's booted.
+5. Run **`make apply-config NODE_IP=x.x.x.x`**.
 
-The node will automatically install Talos, reboot, and securely join your existing Kubernetes cluster! *(Note: If your new worker node requires a different installation disk path than the one you originally specified during cluster generation, simply edit `metal/worker.yaml` to change the `install: disk:` path before applying the config).*
+The Makefile will automatically read the node's role, hostname, and disk settings from `metal.yaml`, inject any necessary patches dynamically, and push the configuration! The node will automatically install Talos, reboot, and securely join your existing Kubernetes cluster.
+
+## Wiping and Destroying
+If you need to wipe a specific disk on a booted (but unconfigured) node:
+```bash
+make wipe-disk NODE_IP=192.168.30.200 DISK=sdb
+```
+
+If you want to clean up local generated templates (`.yaml` and `.iso` files):
+```bash
+make clean
+```
+
+If you want to permanently **destroy** your cluster's cryptographic identity and start a brand new cluster from scratch (This deletes `talos-secrets.yaml`):
+```bash
+make destroy
+```
 
 ---
 
