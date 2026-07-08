@@ -1,6 +1,0 @@
-machine:
-  disks:
-    - device: /dev/sdb
-      partitions:
-        - size: 0 # Use the whole disk
-          mountpoint: /var/lib/longhorn

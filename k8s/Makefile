@@ -11,51 +11,33 @@ RESET  := $(shell printf "\033[0m")
 # Variables
 GATEWAY_API_VERSION ?= v1.4.1
 CSI_SNAPSHOTTER_VERSION ?= v8.6.0
--include .cluster.env
 
 # ==============================================================================
 # TARGETS
 # ==============================================================================
-.PHONY: help init-secrets bootstrap-k8s bootstrap-core recover bootstrap-secrets bootstrap-gateway-api bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
+.PHONY: help bootstrap-k8s bootstrap-core recover bootstrap-secrets bootstrap-gateway-api bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero bootstrap-argocd
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 # ==============================================================================
-# Initialize SOPS Secrets
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for Cloudflare API token.
-# 2. Prompt for SOPS/Age private key.
-# 3. Generate a combined `secrets.yaml` containing the raw values.
-# 4. Immediately encrypt the file using SOPS.
-# ==============================================================================
-init-secrets:
-	@echo "$(CYAN)Enter Cloudflare API Token (for external-dns/cert-manager):$(RESET)"
-	@read CF_TOKEN; \
-	 echo "apiVersion: v1\nkind: Secret\nmetadata:\n  name: cloudflare-api-token\n  namespace: cert-manager\ntype: Opaque\nstringData:\n  api-token: $$CF_TOKEN" > secrets.yaml
-	@echo "$(CYAN)Enter your SOPS/Age Private Key:$(RESET)"
-	@read AGE_KEY; \
-	 echo "---" >> secrets.yaml; \
-	 echo "apiVersion: v1\nkind: Secret\nmetadata:\n  name: sops-age\n  namespace: argocd\ntype: Opaque\nstringData:\n  keys.txt: $$AGE_KEY" >> secrets.yaml
-	@echo "$(YELLOW)Encrypting secrets.yaml with SOPS...$(RESET)"
-	@sops -e -i secrets.yaml
-	@echo "$(GREEN)secrets.yaml has been encrypted safely!$(RESET)"
-
-# ==============================================================================
 # Initialize Cilium Network Pool
 # ------------------------------------------------------------------------------
 # Process Flow:
-# 1. Prompt for the reserved IP Pool CIDR block.
+# 1. Read lb_ippools from ../metal/metal.yaml
 # 2. Generate the CiliumLoadBalancerIPPool CRD manifest.
 # ==============================================================================
 init-network:
 	@if [ ! -f system/kube-system/resources/lb-ippool.yaml ]; then \
-		echo "$(CYAN)Enter LoadBalancer IP Pool CIDRs (space-separated, e.g. 192.168.30.200/29):$(RESET)"; \
-		echo "$(YELLOW)Tip: Use https://www.ipaddressguide.com/cidr to calculate the CIDR for an IP range.$(RESET)"; \
-		read LB_CIDRS; \
-		echo "apiVersion: cilium.io/v2\nkind: CiliumLoadBalancerIPPool\nmetadata:\n  name: default\nspec:\n  blocks:" > system/kube-system/resources/lb-ippool.yaml; \
-		for cidr in $$LB_CIDRS; do \
+		if [ ! -f ../metal/metal.yaml ]; then echo "$(RED)Error: ../metal/metal.yaml not found.$(RESET)"; exit 1; fi; \
+		echo "$(CYAN)Reading LoadBalancer IP Pools from ../metal/metal.yaml...$(RESET)"; \
+		echo "apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: default
+spec:
+  blocks:" > system/kube-system/resources/lb-ippool.yaml; \
+		yq e '.cluster.lb_ippools[]' ../metal/metal.yaml | while read -r cidr; do \
 			echo "    - cidr: $$cidr" >> system/kube-system/resources/lb-ippool.yaml; \
 		done; \
 		echo "$(GREEN)Created lb-ippool.yaml!$(RESET)"; \
@@ -66,6 +48,19 @@ init-network:
 # ==============================================================================
 # Full bootstrap: Core infra plus ArgoCD
 bootstrap-k8s: bootstrap-core bootstrap-argocd
+	@if [ -f ../metal/metal.secrets.yaml ]; then \
+		echo "
+$(GREEN)=======================================================================$(RESET)"; \
+		echo "$(GREEN)Bootstrap Complete! Here are the secrets that were parsed:$(RESET)"; \
+		TS_KEY=$$(sops -d ../metal/metal.secrets.yaml | yq '.secrets.tailscale_auth_key'); \
+		CF_TOKEN=$$(sops -d ../metal/metal.secrets.yaml | yq '.secrets.cloudflare_api_token'); \
+		AGE_KEY=$$(sops -d ../metal/metal.secrets.yaml | yq '.secrets.age_private_key'); \
+		if [ -n "$$TS_KEY" ]; then echo "Tailscale Key: $${TS_KEY:0:10}..."; fi; \
+		if [ -n "$$CF_TOKEN" ]; then echo "Cloudflare Token: $${CF_TOKEN:0:5}..."; fi; \
+		if [ -n "$$AGE_KEY" ]; then echo "Age Key: $${AGE_KEY:0:10}..."; fi; \
+		echo "$(GREEN)=======================================================================
+$(RESET)"; \
+	fi
 
 # Core only. Stop before ArgoCD for DR
 bootstrap-core: bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-manager bootstrap-longhorn bootstrap-velero
@@ -82,19 +77,23 @@ bootstrap-core: bootstrap-secrets bootstrap-cni bootstrap-csi bootstrap-cert-man
 # 3. Decrypt secrets.yaml on the fly (never touches disk) and apply to cluster.
 # ==============================================================================
 bootstrap-secrets:
-# Prompt for secrets if file is missing
-	@if [ ! -f secrets.yaml ]; then \
-		echo "$(YELLOW)secrets.yaml not found. Initializing secrets...$(RESET)"; \
-		$(MAKE) init-secrets; \
+	@if [ ! -f ../metal/metal.secrets.yaml ]; then \
+		echo "$(RED)Error: ../metal/metal.secrets.yaml not found. Run 'make init-secrets' in the metal directory.$(RESET)"; \
+		exit 1; \
 	fi
 	@echo "$(CYAN)Ensuring namespaces exist...$(RESET)"
-# Create namespaces idempotently
 	kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-	@echo "$(CYAN)Applying secrets...$(RESET)"
-# Decrypt and pipe (never touch disk)
-	sops -d secrets.yaml | kubectl apply -f -
-
+	@echo "$(CYAN)Applying secrets from metal.secrets.yaml...$(RESET)"
+	@CF_TOKEN=$$(sops -d ../metal/metal.secrets.yaml | yq '.secrets.cloudflare_api_token'); \
+	if [ -n "$$CF_TOKEN" ] && [ "$$CF_TOKEN" != "null" ] && [ "$$CF_TOKEN" != '""' ]; then \
+		kubectl create secret generic cloudflare-api-token -n cert-manager --from-literal=api-token="$$CF_TOKEN" --dry-run=client -o yaml | kubectl apply -f -; \
+	fi
+	@AGE_KEY=$$(sops -d ../metal/metal.secrets.yaml | yq '.secrets.age_private_key'); \
+	if [ -n "$$AGE_KEY" ] && [ "$$AGE_KEY" != "null" ] && [ "$$AGE_KEY" != '""' ]; then \
+		kubectl create secret generic sops-age -n argocd --from-literal=keys.txt="$$AGE_KEY" --dry-run=client -o yaml | kubectl apply -f -; \
+	fi
+	@echo "$(GREEN)Secrets applied successfully!$(RESET)"
 
 # ==============================================================================
 # Install Kubernetes Gateway API
@@ -137,9 +136,11 @@ bootstrap-cni: init-network
 	kubectl apply -f system/kube-system/resources/
 	
 # Switch local kubeconfig to HA VIP
-	@if [ -n "$(CLUSTER_NAME)" ] && [ -n "$(VIP)" ]; then \
-		echo "$(YELLOW)Restoring kubeconfig to use highly available VIP ($(VIP))...$(RESET)"; \
-		kubectl config set-cluster $(CLUSTER_NAME) --server=https://$(VIP):6443; \
+	@CLUSTER_NAME=$$(yq '.cluster.name' ../metal/metal.yaml); \
+	VIP=$$(yq '.cluster.vip' ../metal/metal.yaml); \
+	if [ -n "$$CLUSTER_NAME" ] && [ -n "$$VIP" ]; then \
+		echo "$(YELLOW)Restoring kubeconfig to use highly available VIP ($$VIP)...$(RESET)"; \
+		kubectl config set-cluster $$CLUSTER_NAME --server=https://$$VIP:6443; \
 	fi
 
 # ==============================================================================

@@ -61,24 +61,43 @@ schematic:
 #    Tailscale patch, and custom ISO schematic ID.
 # 6. Validate the output YAMLs against the Talos metal spec.
 # ==============================================================================
+
+# ==============================================================================
+# Initialize Secrets
+# ==============================================================================
+init-secrets:
+	@if [ ! -f metal.secrets.dec.yaml ] && [ ! -f metal.secrets.yaml ]; then \
+		echo "secrets:\n  tailscale_auth_key: \"\"\n  cloudflare_api_token: \"\"\n  age_private_key: \"\"" > metal.secrets.dec.yaml; \
+		echo "$(GREEN)Created metal.secrets.dec.yaml! Please fill it out with your keys.$(RESET)"; \
+	else \
+		echo "$(YELLOW)Secrets file already exists.$(RESET)"; \
+	fi
+
+view-secrets:
+	@if [ -f metal.secrets.dec.yaml ]; then \
+		echo "$(YELLOW)Found metal.secrets.dec.yaml, encrypting with SOPS...$(RESET)"; \
+		sops -e metal.secrets.dec.yaml > metal.secrets.yaml; \
+	fi; \
+	if [ ! -f metal.secrets.yaml ]; then echo "$(RED)Missing metal.secrets.yaml. Run 'make init-secrets' first.$(RESET)"; exit 1; fi; \
+	sops -d metal.secrets.yaml
+
+# ==============================================================================
+# Generate Talos Machine Configurations
+# ==============================================================================
 generate-config:
 	@set -e; \
 	if [ ! -f patches/controlplane.patch.yaml ]; then echo "$(RED)Missing patches/controlplane.patch.yaml$(RESET)"; exit 1; fi; \
-	echo "$(CYAN)Enter Cluster Name [default: $(CLUSTER_NAME)]:$(RESET)"; \
-	read CLUSTER_INPUT; \
-	if [ -z "$$CLUSTER_INPUT" ]; then CLUSTER_INPUT="$(CLUSTER_NAME)"; fi; \
-	echo "$(CYAN)Enter Cluster VIP / API Server IP:$(RESET)"; \
-	read VIP; \
-	echo "$(CYAN)Enter the primary install disk (e.g. /dev/sda or /dev/nvme0n1) [default: /dev/sda]:$(RESET)"; \
-	echo "$(YELLOW)(Hint: If you don't know your disk, metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso is already downloaded! Boot it, open a new terminal, and run 'make get-disks')$(RESET)"; \
-	read DISK_INPUT; \
-	if [ -z "$$DISK_INPUT" ]; then DISK_INPUT="/dev/sda"; fi; \
-	echo "CLUSTER_NAME=$$CLUSTER_INPUT" > ../k8s/.cluster.env; \
-	echo "VIP=$$VIP" >> ../k8s/.cluster.env; \
-	echo "$(CYAN)Enter your Tailscale Auth Key (leave blank to skip):$(RESET)"; \
-	read TS_KEY; \
-	echo ""; \
-	if [ -n "$$TS_KEY" ]; then \
+	if [ ! -f metal.yaml ]; then echo "$(RED)Missing metal.yaml$(RESET)"; exit 1; fi; \
+	if [ -f metal.secrets.dec.yaml ]; then \
+		echo "$(YELLOW)Found metal.secrets.dec.yaml, encrypting with SOPS to metal.secrets.yaml...$(RESET)"; \
+		sops -e metal.secrets.dec.yaml > metal.secrets.yaml; \
+	fi; \
+	if [ ! -f metal.secrets.yaml ]; then echo "$(RED)Missing metal.secrets.yaml. Run 'make init-secrets' first.$(RESET)"; exit 1; fi; \
+	CLUSTER_NAME=$$(yq '.cluster.name' metal.yaml); \
+	VIP=$$(yq '.cluster.vip' metal.yaml); \
+	DISK_INPUT=$$(yq '.cluster.disk' metal.yaml); \
+	TS_KEY=$$(sops -d metal.secrets.yaml | yq '.secrets.tailscale_auth_key'); \
+	if [ -n "$$TS_KEY" ] && [ "$$TS_KEY" != "null" ] && [ "$$TS_KEY" != '""' ]; then \
 		export TS_AUTHKEY="$$TS_KEY"; \
 		envsubst < patches/tailscale.patch.yaml > .tailscale.patch.yaml; \
 	fi; \
@@ -92,7 +111,7 @@ generate-config:
 		sops -d talos-secrets.yaml > .talos-secrets.dec.yaml; \
 	fi; \
 	echo "$(CYAN)Generating configurations...$(RESET)"; \
-	talosctl gen config $$CLUSTER_INPUT https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch-control-plane @patches/controlplane.patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
+	talosctl gen config $$CLUSTER_NAME https://$$VIP:6443 --with-secrets .talos-secrets.dec.yaml --config-patch-control-plane @patches/controlplane.patch.yaml --install-disk $$DISK_INPUT --install-image factory.talos.dev/installer/$(SCHEMATIC_ID):$(TALOS_VERSION) --force; \
 	if [ -f .tailscale.patch.yaml ]; then \
 		echo "---" >> controlplane.yaml; \
 		cat .tailscale.patch.yaml >> controlplane.yaml; \
@@ -106,104 +125,82 @@ generate-config:
 	echo "$(GREEN)Cluster configs deterministically generated!$(RESET)"
 
 # ==============================================================================
-# CLEANUP
-# ==============================================================================
-clean:
-	@echo "$(YELLOW)Cleaning up temporary configurations...$(RESET)"
-	@rm -f controlplane.yaml worker.yaml talosconfig ../k8s/.cluster.env
-
-# ==============================================================================
-# Destroy Cluster PKI
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Display a critical warning about data and access loss.
-# 2. Prompt for explicit user confirmation before proceeding.
-# 3. Delete PKI certificates, ISOs, and decrypted SOPS secrets.
-# ==============================================================================
-destroy: clean
-	@echo "$(RED)WARNING: This will completely destroy your cluster's PKI and you will lose access!$(RESET)"
-	@echo "$(RED)Are you sure you want to proceed? [y/N]$(RESET)"
-	@read -r ans; \
-	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
-		rm -f talosconfig schematic.id metal-*.iso talos-secrets.yaml .talos-secrets.dec.yaml; \
-		echo "$(RED)PKI, ISO, and SOPS secrets destroyed. Ready for a fresh install.$(RESET)"; \
-	else \
-		echo "$(YELLOW)Aborted.$(RESET)"; \
-	fi
-
-# ==============================================================================
-# LIFECYCLE & MANAGEMENT
-# ==============================================================================
-# ==============================================================================
-# Fetch Bootable ISO
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Verify that a custom schematic ID has been generated.
-# 2. Download the Talos metal ISO tailored with our extensions.
-# ==============================================================================
-iso: schematic
-	@if [ ! -f metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso ]; then \
-		echo "$(CYAN)Fetching Talos $(ARCH) ISO for schematic $(SCHEMATIC_ID) version $(TALOS_VERSION)...$(RESET)"; \
-		curl -Lo metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso https://factory.talos.dev/image/$(SCHEMATIC_ID)/$(TALOS_VERSION)/metal-$(ARCH).iso; \
-	else \
-		echo "$(GREEN)metal-$(ARCH)-$(TALOS_VERSION)-$(SCHEMATIC_ID).iso already exists.$(RESET)"; \
-	fi
-
-# ==============================================================================
-# Apply Talos Configuration (Single Node)
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for the IP address of the target booted node.
-# 2. Look up the corresponding role and hostname from nodes.csv.
-# 3. Apply the configuration (and hostname patch) insecurely to the target node.
+# Apply Talos Configurations to a Single Node
 # ==============================================================================
 apply-config:
-	@if [ -z "$(NODE_IP)" ]; then \
-		echo "$(CYAN)Enter the IP address of the booted node:$(RESET)"; \
-		read NODE_IP_VAL; \
-	else \
-		NODE_IP_VAL="$(NODE_IP)"; \
+	@set -e; \
+	if [ -z "$(NODE_IP)" ]; then \
+		echo "$(RED)Error: NODE_IP is required. e.g. make apply-config NODE_IP=1.2.3.4$(RESET)"; exit 1; \
 	fi; \
-	if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
-	ROLE_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f2); \
-	HOSTNAME_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f3); \
-	if [ -z "$$ROLE_VAL" ]; then \
-		echo "$(RED)Error: Node IP $$NODE_IP_VAL not found in nodes.csv$(RESET)"; exit 1; \
+	if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
+	ROLE_VAL=$$(yq '.nodes[] | select(.ip == "'$(NODE_IP)'") | .role' metal.yaml); \
+	HOSTNAME_VAL=$$(yq '.nodes[] | select(.ip == "'$(NODE_IP)'") | .hostname' metal.yaml); \
+	if [ -z "$$ROLE_VAL" ] || [ "$$ROLE_VAL" = "null" ]; then \
+		echo "$(RED)Error: Node IP $(NODE_IP) not found in metal.yaml$(RESET)"; exit 1; \
 	fi; \
 	if [ ! -f "$$ROLE_VAL.yaml" ]; then \
 		echo "$(RED)Error: $$ROLE_VAL.yaml not found. Run 'make generate-config' first.$(RESET)"; \
 		exit 1; \
 	fi; \
-	if [ -n "$$HOSTNAME_VAL" ]; then \
-		echo "$(CYAN)Applying $$ROLE_VAL configuration with hostname $$HOSTNAME_VAL to $$NODE_IP_VAL...$(RESET)"; \
-		talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml --config-patch '{"machine": {"network": {"hostname": "'$$HOSTNAME_VAL'"}}}'; \
-	else \
-		echo "$(CYAN)Applying $$ROLE_VAL configuration to $$NODE_IP_VAL...$(RESET)"; \
-		talosctl apply-config --insecure --nodes $$NODE_IP_VAL --file $$ROLE_VAL.yaml; \
+	PATCH_ARG="--config-patch '{\"machine\": {\"network\": {\"hostname\": \"$$HOSTNAME_VAL\"}}}'"; \
+	DISKS_JSON=$$(yq -o=json '.nodes[] | select(.ip == "'$(NODE_IP)'") | .additional_disks // []' metal.yaml); \
+	rm -f .user-volumes.yaml; touch .user-volumes.yaml; \
+	if [ "$$DISKS_JSON" != "[]" ]; then \
+		echo "$(CYAN)Found additional disks for $(NODE_IP), generating UserVolumeConfigs...$(RESET)"; \
+		for diskpath in $$(echo "$$DISKS_JSON" | jq -r '.[]'); do \
+			diskname=$$(basename "$$diskpath"); \
+			echo "---" >> .user-volumes.yaml; \
+			echo "apiVersion: v1alpha1" >> .user-volumes.yaml; \
+			echo "kind: UserVolumeConfig" >> .user-volumes.yaml; \
+			echo "name: $$diskname" >> .user-volumes.yaml; \
+			echo "provisioning:" >> .user-volumes.yaml; \
+			echo "  diskSelector:" >> .user-volumes.yaml; \
+			echo "    match: disk.name == '$$diskname'" >> .user-volumes.yaml; \
+			echo "  grow: false" >> .user-volumes.yaml; \
+			echo ""; \
+			echo "$(YELLOW)========================================================================$(RESET)"; \
+			echo "$(YELLOW)REMINDER: Disk /var/mnt/$$diskname will be formatted and mounted.$(RESET)"; \
+			echo "$(YELLOW)Please add it via the Longhorn UI later!$(RESET)"; \
+			echo "$(YELLOW)========================================================================$(RESET)"; \
+			echo ""; \
+		done; \
 	fi; \
+	echo "$(CYAN)Applying $$ROLE_VAL configuration with hostname $$HOSTNAME_VAL to $(NODE_IP)...$(RESET)"; \
+	cat $$ROLE_VAL.yaml .user-volumes.yaml > .apply.yaml; \
+	eval "talosctl apply-config --insecure --nodes $(NODE_IP) --file .apply.yaml $$PATCH_ARG"; \
+	rm -f .user-volumes.yaml .apply.yaml; \
 	echo "$(GREEN)Configuration applied! The node will reboot and install Talos.$(RESET)"
 
 # ==============================================================================
-# Apply Talos Configuration (All Nodes)
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Loop through all nodes in nodes.csv and sequentially apply their configs.
+# Wipe Disk (Run after USB Boot, before apply-config)
+# ==============================================================================
+wipe-disk:
+	@set -e; \
+	if [ -z "$(NODE_IP)" ]; then \
+		echo "$(RED)Error: NODE_IP is required. e.g. make wipe-disk NODE_IP=192.168.30.201 DISK=sdb$(RESET)"; exit 1; \
+	fi; \
+	if [ -z "$(DISK)" ]; then \
+		echo "$(RED)Error: DISK is required. e.g. make wipe-disk NODE_IP=192.168.30.201 DISK=sdb$(RESET)"; exit 1; \
+	fi; \
+	DISK_CLEAN=$$(basename "$(DISK)"); \
+	echo "$(CYAN)Wiping disk $$DISK_CLEAN on node $(NODE_IP)...$(RESET)"; \
+	talosctl wipe disk $$DISK_CLEAN --nodes $(NODE_IP) --insecure; \
+	echo "$(GREEN)Disk wiped successfully!$(RESET)"
+
+# ==============================================================================
+# Apply Configurations to All Booted Nodes
 # ==============================================================================
 apply-all:
-	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
-	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
-		if [ -n "$$ip" ]; then \
-			echo "\n$(YELLOW)=== Deploying to $$ip ($$role) ===$(RESET)"; \
-			$(MAKE) apply-config NODE_IP="$$ip"; \
-		fi; \
+	@if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
+	yq e -o=j -I=0 '.nodes[]' metal.yaml | while read -r node; do \
+		ip=$$(echo "$$node" | jq -r .ip); \
+		role=$$(echo "$$node" | jq -r .role); \
+		echo "\n$(YELLOW)=== Deploying to $$ip ($$role) ===$(RESET)"; \
+		$(MAKE) apply-config NODE_IP="$$ip"; \
 	done
 
 # ==============================================================================
 # Inspect Node Disks
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for the IP address of the target booted node.
-# 2. Fetch and display the disk information securely from Talos.
 # ==============================================================================
 get-disks:
 	@if [ -z "$(NODE_IP)" ]; then \
@@ -217,23 +214,15 @@ get-disks:
 
 # ==============================================================================
 # Bootstrap Talos (Initialize etcd)
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for the IP address of one Control Plane node.
-# 2. Configure the local talosconfig to point to this node.
-# 3. Send the bootstrap command to initialize etcd on the cluster.
-# 4. Fetch the kubeconfig once the Kubernetes API server is ready.
-# 5. Reroute the kubeconfig context directly to the physical node IP.
-# 6. Merge the generated talosconfig into the global ~/.talos/config.
 # ==============================================================================
 bootstrap-talos:
-	@if [ -z "$(CP_IP)" ]; then \
-		echo "$(CYAN)Enter the IP address of ONE of your Control Plane nodes:$(RESET)"; \
-		read CP_IP_VAL; \
-	else \
-		CP_IP_VAL="$(CP_IP)"; \
+	@if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
+	CP_IP_VAL=$$(yq '.nodes[] | select(.role == "controlplane") | .ip' metal.yaml | head -n 1); \
+	if [ -z "$$CP_IP_VAL" ] || [ "$$CP_IP_VAL" = "null" ]; then \
+		echo "$(RED)Error: No controlplane node found in metal.yaml$(RESET)"; exit 1; \
 	fi; \
-	echo "CP_IP=$$CP_IP_VAL" >> ../k8s/.cluster.env; \
+	CLUSTER_NAME=$$(yq '.cluster.name' metal.yaml); \
+	echo "$(CYAN)Selected Master CP: $$CP_IP_VAL$(RESET)"; \
 	echo "$(CYAN)Configuring talosconfig with endpoint and node $$CP_IP_VAL...$(RESET)"; \
 	talosctl --talosconfig=./talosconfig config endpoint $$CP_IP_VAL; \
 	talosctl --talosconfig=./talosconfig config node $$CP_IP_VAL; \
@@ -251,11 +240,6 @@ bootstrap-talos:
 
 # ==============================================================================
 # Patch Live Talos Node
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for the IP address of the target node.
-# 2. Prompt for the patch file to apply (default: patches/talos-patch.yaml).
-# 3. Apply the machine config patch to the live node.
 # ==============================================================================
 patch-node:
 	@set -e; \
@@ -283,26 +267,18 @@ patch-node:
 
 # ==============================================================================
 # Patch All Live Talos Nodes
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Loop through all nodes in nodes.csv and sequentially apply the patch file.
 # ==============================================================================
 patch-all:
-	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
-	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
-		if [ -n "$$ip" ]; then \
-			echo "\n$(YELLOW)=== Patching $$ip ($$role) ===$(RESET)"; \
-			$(MAKE) patch-node NODE_IP="$$ip" PATCH_FILE="$(PATCH_FILE)"; \
-		fi; \
+	@if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
+	yq e -o=j -I=0 '.nodes[]' metal.yaml | while read -r node; do \
+		ip=$$(echo "$$node" | jq -r .ip); \
+		role=$$(echo "$$node" | jq -r .role); \
+		echo "\n$(YELLOW)=== Patching $$ip ($$role) ===$(RESET)"; \
+		$(MAKE) patch-node NODE_IP="$$ip" PATCH_FILE="$(PATCH_FILE)"; \
 	done
 
 # ==============================================================================
 # Rename Live Talos Node
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Read the IP from arguments or prompt interactively.
-# 2. Extract the corresponding hostname from nodes.csv.
-# 3. Directly patch the HostnameConfig API resource on the live node.
 # ==============================================================================
 rename-node:
 	@set -e; \
@@ -312,10 +288,10 @@ rename-node:
 	else \
 		NODE_IP_VAL="$(NODE_IP)"; \
 	fi; \
-	if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
-	HOSTNAME_VAL=$$(grep "^$$NODE_IP_VAL," nodes.csv | cut -d',' -f3); \
-	if [ -z "$$HOSTNAME_VAL" ]; then \
-		echo "$(RED)Error: Hostname for IP $$NODE_IP_VAL not found in nodes.csv$(RESET)"; exit 1; \
+	if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
+	HOSTNAME_VAL=$$(yq '.nodes[] | select(.ip == "'$$NODE_IP_VAL'") | .hostname' metal.yaml); \
+	if [ -z "$$HOSTNAME_VAL" ] || [ "$$HOSTNAME_VAL" = "null" ]; then \
+		echo "$(RED)Error: Hostname for IP $$NODE_IP_VAL not found in metal.yaml$(RESET)"; exit 1; \
 	fi; \
 	echo "$(CYAN)Updating hostname for $$NODE_IP_VAL to $$HOSTNAME_VAL via API...$(RESET)"; \
 	talosctl patch HostnameConfig --nodes $$NODE_IP_VAL -p '{"hostname": "'$$HOSTNAME_VAL'", "auto": false}'; \
@@ -323,12 +299,6 @@ rename-node:
 
 # ==============================================================================
 # Upgrade Talos OS Version
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Prompt for the IP address of the target node.
-# 2. Prompt for the target Talos version.
-# 3. Read the custom schematic ID to maintain extensions.
-# 4. Initiate the OS upgrade and reboot sequence.
 # ==============================================================================
 upgrade-node: schematic
 	@set -e; \
@@ -350,21 +320,18 @@ upgrade-node: schematic
 
 # ==============================================================================
 # Upgrade All Talos OS Nodes
-# ------------------------------------------------------------------------------
-# Process Flow:
-# 1. Loop through all nodes in nodes.csv and sequentially upgrade them.
 # ==============================================================================
 upgrade-all:
-	@if [ ! -f nodes.csv ]; then echo "$(RED)Error: nodes.csv not found.$(RESET)"; exit 1; fi; \
+	@if [ ! -f metal.yaml ]; then echo "$(RED)Error: metal.yaml not found.$(RESET)"; exit 1; fi; \
 	if [ -z "$(NEW_VERSION)" ]; then \
 		echo "$(CYAN)Enter the new Talos version (e.g. v1.14.0):$(RESET)"; \
 		read NEW_VERSION_VAL; \
 	else \
 		NEW_VERSION_VAL="$(NEW_VERSION)"; \
 	fi; \
-	grep -v '^#' nodes.csv | while IFS=',' read -r ip role host; do \
-		if [ -n "$$ip" ]; then \
-			echo "\n$(YELLOW)=== Upgrading $$ip ($$role) ===$(RESET)"; \
-			$(MAKE) upgrade-node NODE_IP="$$ip" NEW_VERSION="$$NEW_VERSION_VAL"; \
-		fi; \
+	yq e -o=j -I=0 '.nodes[]' metal.yaml | while read -r node; do \
+		ip=$$(echo "$$node" | jq -r .ip); \
+		role=$$(echo "$$node" | jq -r .role); \
+		echo "\n$(YELLOW)=== Upgrading $$ip ($$role) ===$(RESET)"; \
+		$(MAKE) upgrade-node NODE_IP="$$ip" NEW_VERSION="$$NEW_VERSION_VAL"; \
 	done

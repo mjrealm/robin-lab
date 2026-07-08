@@ -1,0 +1,16 @@
+cluster:
+  name: robin
+  vip: 192.168.30.150
+  disk: /dev/sda
+  lb_ippools:
+    # 192.168.30.155 - 192.168.30.160
+    - 192.168.30.155/32
+    - 192.168.30.156/30
+    - 192.168.30.160/32
+
+nodes:
+  - ip: 192.168.30.200
+    role: controlplane
+    hostname: robin-cp-01
+    additional_disks:
+      - /dev/sdb

@@ -27,17 +27,16 @@ make cluster ARCH=arm64 TALOS_VERSION=v1.14.0
 ```
 
 ## TL;DR: Fresh Install / Cluster Rebuild
-If the repository is already configured and you are doing a routine cluster rebuild or a fresh installation, ensure you have the following credentials ready:
-1. Your **Tailscale Auth Key** (90-day Reusable, non-ephemeral).
-2. Your **Cloudflare API Token** (for `cert-manager` and `external-dns`).
-3. Your SOPS **`age` Private Key** (must be located at `~/.config/sops/age/keys.txt`).
-4. A reserved **LoadBalancer IP Pool CIDR** (e.g. `192.168.30.200/29`) for Cilium to assign to your services. *(Use a tool like [IPAddressGuide](https://www.ipaddressguide.com/cidr) to easily convert a raw IP range into CIDR notation).*
+If the repository is already configured and you are doing a routine cluster rebuild or a fresh installation, ensure you have filled out your configuration files:
+1. Copy `metal/metal.secrets.example.yaml` to `metal/metal.secrets.yaml` and fill it out with your keys (Tailscale Auth Key, Cloudflare API Token, Age Private Key).
+2. Edit `metal/metal.yaml` to define your cluster VIP, install disk, load balancer IP pools, and all your physical nodes (IPs, roles, hostnames, and extra disks).
 
-Once ready, just run these commands:
+Once ready, just run these commands from the root directory:
 
 ```bash
 make cluster          # (Run once) Generate configs and download the bootable Talos ISO
-make apply-all        # (Run once) Push configuration to all nodes defined in nodes.csv
+# make wipe-disk NODE_IP=x.x.x.x DISK=sdb  # (Optional) If you have additional disks, wipe them first!
+make apply-all        # (Run once) Push configuration to all nodes defined in metal.yaml
 make bootstrap-talos  # (Run once) Initialize the cluster and fetch kubeconfig
 make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependencies
 ```
@@ -53,30 +52,50 @@ make bootstrap-k8s    # (Run once) Install GitOps, Storage, and Backup dependenc
 
 1. Boot your servers using the customized `talos-metal-amd64.iso` from the `metal/` directory.
 2. Once booted, the console will display an IP address. Note these down.
-3. Edit `metal/nodes.csv` to explicitly declare your physical machines:
-   ```csv
-   # Format: IP,ROLE,HOSTNAME
-   192.168.30.200,controlplane,robin-cp-01
-   192.168.30.201,worker,robin-worker-01
+3. Edit `metal/metal.yaml` to define your cluster network, load balancer IP pools, and your physical machines:
+   ```yaml
+   cluster:
+     name: robin
+     vip: 192.168.30.200
+     disk: /dev/sda
+     lb_ippools:
+       - 192.168.30.200/29
+
+    nodes:
+      - ip: 192.168.30.200
+        role: controlplane
+        hostname: robin-cp-01
+      - ip: 192.168.30.201
+        role: worker
+        hostname: robin-worker-01
+        additional_disks:
+          - /dev/sdb
+    ```
+4. Copy `metal/metal.secrets.example.yaml` (if it exists) or create `metal/metal.secrets.dec.yaml` with the following structure:
+   ```yaml
+   secrets:
+     tailscale_auth_key: "..."
+     cloudflare_api_token: "..."
+     age_private_key: "..."
    ```
+   *Note: `.dec.yaml` files are `.gitignore`d. When you run `make apply-all`, the Makefile will automatically encrypt this file into `metal.secrets.yaml` via SOPS and commit-safe! All processes read from the encrypted version.*
 
 ### Step 2: Push Configurations
 
-From the `metal/` directory, deploy the OS securely to all your nodes at once:
+From the root directory, deploy the OS securely to all your nodes at once:
 
 ```bash
-cd metal/
 make apply-all
 ```
 
-*(Alternatively, you can deploy a specific node using `make apply-config NODE_IP=x.x.x.x`)*
+*(Alternatively, you can deploy a specific node using `make apply-config NODE_IP=x.x.x.x`. If `additional_disks` are defined, they will be formatted and mounted at `/var/mnt/<disk>`, ready for Longhorn!)*
 
 ### Step 3: Wake Up the Cluster (Bootstrap Talos)
 Once your nodes have rebooted from their hard drives, you must manually initialize `etcd` on the first control plane node to form the cluster.
 ```bash
 make bootstrap-talos
 ```
-This will prompt you for the IP address of one of your Control Plane nodes, automatically issue the bootstrap command, and pull down your `kubeconfig` so you are ready to manage Kubernetes!
+This will automatically parse `metal.yaml` for the first control plane node, issue the bootstrap command, and pull down your kubeconfig so you are ready to manage Kubernetes!
 
 ### Step 4: Kubernetes Bootstrap
 Once Talos is up, we must imperatively install the critical DR dependencies in strict order.
@@ -85,7 +104,7 @@ Once Talos is up, we must imperatively install the critical DR dependencies in s
 make bootstrap-k8s
 ```
 **Strict Order Executed:**
-1. SOPS Secret Injection.
+1. SOPS Secret Injection (Silently reads from `metal.secrets.yaml`).
 2. Cilium CNI.
 3. CSI External Snapshotter (CRDs required by Longhorn).
 4. Cert-Manager (with Cloudflare ClusterIssuer).
@@ -99,7 +118,7 @@ Once ArgoCD is running, it will automatically sync `system/`, `platform/`, and `
 
 ## Disaster Recovery (Velero)
 If you lose your entire cluster:
-1. **Ensure your SOPS `age` private key** is available on your machine (e.g., at `~/.config/sops/age/keys.txt`) so it can decrypt `talos-secrets.yaml`.
+1. **Ensure `metal/metal.secrets.yaml` is filled out** locally with your age private key, cloudflare token, and tailscale key.
 2. Run `make cluster` to deterministically regenerate your cluster configurations using your exact certificates.
 3. Boot your nodes with the downloaded ISO, then run `make apply-config` for each node.
 4. Run `make bootstrap-talos` to wake the cluster.

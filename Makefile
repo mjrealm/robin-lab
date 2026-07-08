@@ -18,8 +18,8 @@ check-tools: ## Verify all required CLI tools are installed
 # ==============================================================================
 # INITIALIZATION & LINTING
 # ==============================================================================
-init-secrets: check-tools ## Prompt and generate SOPS encrypted secrets for Age and Cloudflare
-	@$(MAKE) -C k8s init-secrets
+init-secrets: check-tools ## Create metal.secrets.dec.yaml template for SOPS encryption
+	@$(MAKE) -C metal init-secrets
 
 lint: check-tools ## Run yamllint on all YAML files
 	@echo "$(CYAN)Running yamllint...$(RESET)"
@@ -31,8 +31,14 @@ lint: check-tools ## Run yamllint on all YAML files
 cluster: check-tools ## Generate configs and download the bootable Talos ISO
 	@$(MAKE) -C metal cluster
 
-apply-config: check-tools ## Push configuration to each ISO-booted node
+apply-config: check-tools ## Push configuration to a specific ISO-booted node
 	@$(MAKE) -C metal apply-config
+
+apply-all: check-tools ## Push configuration to all nodes defined in metal.yaml
+	@$(MAKE) -C metal apply-all
+
+wipe-disk: check-tools ## Wipe additional disks safely via Talos Maintenance API
+	@$(MAKE) -C metal wipe-disk
 
 bootstrap-talos: check-tools ## Wake up the cluster (initialize etcd)
 	@$(MAKE) -C metal bootstrap-talos

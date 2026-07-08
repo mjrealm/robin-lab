@@ -22,3 +22,4 @@ matchbox/data/profiles/*.json
 matchbox/data/groups/*.json
 .talos-secrets.dec.yaml
 .tailscale.patch.yaml
+metal.secrets.yaml
