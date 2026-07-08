@@ -13,7 +13,7 @@ Bare-metal Kubernetes homelab using Talos Linux, GitOps (ArgoCD), and strict Dis
 ## Prerequisites
 Assuming you are using macOS (Apple Silicon M-chip):
 ```bash
-brew install talosctl helm kubectl sops age gettext watch yamllint
+brew install talosctl helm kubectl sops age gettext watch yamllint yq jq
 ```
 
 ## Configuration Variables
